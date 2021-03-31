@@ -61,4 +61,4 @@ void clean_cpu(struct SM83& cpu);
 
 void run_debugger(struct SM83& cpu);
 
-void disassemble_byte(uint8_t instr[4]);
+int disassemble_instruction(uint8_t instr[4]);
