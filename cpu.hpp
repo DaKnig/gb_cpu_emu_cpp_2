@@ -1,3 +1,5 @@
+#pragma once
+
 /*
   this is a declaration of the CPU emulator for the game boy
 */

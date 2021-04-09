@@ -1,7 +1,8 @@
 CFLAGS=-O0 -ggdb -Wall
 CC=g++
+OBJS=objs/cpu.o objs/main.o objs/debugger.o
 
-bin/main: objs/cpu.o objs/main.o
+bin/main: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 objs/%.o: %.cpp

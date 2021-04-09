@@ -1,8 +1,14 @@
-#include "cpu.hpp"
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+#include "cpu.hpp"
+
+//#define DEBUG
+
+static inline bool run_single_prefix_command(struct SM83& cpu);
 
 bool run_single_command(struct SM83& cpu) {
     // add flags and all later
@@ -42,16 +48,32 @@ bool run_single_command(struct SM83& cpu) {
     INDIRECT_STORE_A(0x22, hl++);
     INDIRECT_STORE_A(0x32, hl--);
 
-#define REG_INC_OR_DEC(OPCODE,REG,OP)		\
+#define DOUBLE_REG_INC_OR_DEC(OPCODE,REG,OP)	\
     case OPCODE:				\
 	cpu.regs. REG OP;			\
 	cpu.regs.pc++;				\
 	return 0
 
-    REG_INC_OR_DEC(0x03, bc, ++);
-    REG_INC_OR_DEC(0x13, de, ++);
-    REG_INC_OR_DEC(0x23, hl, ++);
-    REG_INC_OR_DEC(0x33, sp, ++);
+    DOUBLE_REG_INC_OR_DEC(0x03, bc, ++);
+    DOUBLE_REG_INC_OR_DEC(0x13, de, ++);
+    DOUBLE_REG_INC_OR_DEC(0x23, hl, ++);
+    DOUBLE_REG_INC_OR_DEC(0x33, sp, ++);
+
+#define REG_INC_OR_DEC(OPCODE,REG,OP)					\
+    case OPCODE:							\
+	do {								\
+	    uint32_t old_val = cpu.regs. REG;				\
+	    uint32_t new_val = OP old_val;				\
+	    cpu.regs.f = cpu.regs.f & 0x10; /* only keep cf */		\
+	    cpu.regs.f|= (new_val&0xff) == 0? 0x80 : 0x00;		\
+	    cpu.regs.f|= # OP [0]=='-' ? 0x40 : 0x00;			\
+	    if ((# OP [0] == '-' && new_val%16 == 0xf) ||		\
+		(# OP [0] == '+' && new_val%16 == 0x0))	/*hf*/		\
+		cpu.regs.f|= 0x20;					\
+	    cpu.regs. REG = new_val;					\
+	    cpu.regs.pc++;						\
+	    return 0;							\
+	} while(0)
 
     REG_INC_OR_DEC(0x04, b, ++);
     REG_INC_OR_DEC(0x14, d, ++);
@@ -124,7 +146,8 @@ bool run_single_command(struct SM83& cpu) {
 
 #define COND_JR(OPCODE, COND)				\
     case OPCODE:					\
-	cpu.regs.pc += 2 + (int8_t) (COND ? imm8 : 2);	\
+	cpu.regs.pc += 2;				\
+	cpu.regs.pc += (int8_t) (COND ? imm8 : 0);	\
 	return 0
 
     COND_JR(0x18, 1 );
@@ -134,11 +157,18 @@ bool run_single_command(struct SM83& cpu) {
     COND_JR(0x20,!zf);
     COND_JR(0x30,!cf);
 
-#define ADD_HL(OPCODE, OPERAND)			\
-    case OPCODE:				\
-	cpu.regs.hl += cpu.regs. OPERAND ;	\
-	cpu.regs.pc += 2;			\
-	return 0
+#define ADD_HL(OPCODE, OPERAND)						\
+    case OPCODE:							\
+	do {								\
+	    uint32_t new_val = cpu.regs.hl+cpu.regs. OPERAND ;		\
+	    cpu.regs.f &= 0x80;						\
+	    cpu.regs.f |= (new_val>0xffff ? 0x10:0);			\
+	    int bottom_12 = (cpu.regs.hl&0x3fff)+(cpu.regs. OPERAND&0x3fff); \
+	    cpu.regs.f |= (bottom_12>0x3fff ? 0x20:0);			\
+	    cpu.regs.hl= new_val;					\
+	    cpu.regs.pc++;						\
+	    return 0;							\
+	} while(0)
 
     ADD_HL(0x09, bc);
     ADD_HL(0x19, de);
@@ -156,10 +186,10 @@ bool run_single_command(struct SM83& cpu) {
     LOAD_A(0x2a, hl++);
     LOAD_A(0x3a, hl--);
 
-    REG_INC_OR_DEC(0x0b, bc, --);
-    REG_INC_OR_DEC(0x1b, de, --);
-    REG_INC_OR_DEC(0x2b, hl, --);
-    REG_INC_OR_DEC(0x3b, sp, --);
+    DOUBLE_REG_INC_OR_DEC(0x0b, bc, --);
+    DOUBLE_REG_INC_OR_DEC(0x1b, de, --);
+    DOUBLE_REG_INC_OR_DEC(0x2b, hl, --);
+    DOUBLE_REG_INC_OR_DEC(0x3b, sp, --);
 
     REG_INC_OR_DEC(0x0c, c, ++);
     REG_INC_OR_DEC(0x1c, e, ++);
@@ -315,6 +345,7 @@ bool run_single_command(struct SM83& cpu) {
 	return 0
     XX_FOR_ALL_REGS(OR);
 #define CP(REG,OFFSET)					\
+    case 0xb8+OFFSET:					\
     	cpu.regs.f = (cpu.regs.a < REG) << 4;		\
 	cpu.regs.f |= (cpu.regs.a%16 < REG%16) << 5;	\
 	cpu.regs.f |= 1<<6;				\
@@ -326,7 +357,7 @@ bool run_single_command(struct SM83& cpu) {
     case OPCODE:					\
 	if (COND) {					\
 	    cpu.regs.pc = cpu.mem[cpu.regs.sp++];	\
-	    cpu.regs.pc|= cpu.mem[cpu.regs.sp++]<<4;	\
+	    cpu.regs.pc|= cpu.mem[cpu.regs.sp++]<<8;	\
 	} else						\
 	    cpu.regs.pc++;				\
 	return 0
@@ -405,16 +436,18 @@ bool run_single_command(struct SM83& cpu) {
     PUSH(0xf5, af);
 
 #define OP_A_D8(OPCODE, OP, NF)					\
-    case OPCODE: do {						\
-	int res = cpu.regs.a OP imm8;				\
-	int h = (uint8_t) (cpu.regs.a%16 OP imm8%16) > 16;	\
-	cpu.regs.a = res;					\
-	cpu.regs.f = (res>255 || res<0) << 4;			\
-	cpu.regs.f|= h << 5;					\
-	cpu.regs.f|= NF<< 6;					\
-	cpu.regs.f|= (cpu.regs.a == 0) << 7;			\
-	return 0;						\
-    } while(0)
+    case OPCODE:						\
+        do {							\
+	    unsigned res = cpu.regs.a OP imm8;			\
+	    int h = ((uint8_t) (cpu.regs.a%16 OP imm8%16)) > 15;\
+	    cpu.regs.a = res;					\
+	    cpu.regs.f = res>255? 0x10:0;			\
+	    cpu.regs.f|= h ? 0x20:0;				\
+	    cpu.regs.f|= NF? 0x40:0;				\
+	    cpu.regs.f|= cpu.regs.a==0? 0x80:0;			\
+	    cpu.regs.pc += 2;					\
+	    return 0;						\
+	} while(0)
 
     OP_A_D8(0xc6,+,0);
     OP_A_D8(0xce,+cf+,0);
@@ -424,10 +457,12 @@ bool run_single_command(struct SM83& cpu) {
     OP_A_D8(0xee,^,0);
     OP_A_D8(0xf6,|,0);
     case 0xfe: {
-	int res = cpu.regs.a - imm8;
-	cpu.regs.f = (res>255 || res<0) << 4;
-	cpu.regs.f|= (cpu.regs.a%16 < imm8%16) << 5;
-	cpu.regs.f|= (res == 0) << 7;
+	unsigned res = cpu.regs.a - imm8;
+	cpu.regs.f = res>255 ? 0x10:0;
+	cpu.regs.f|= cpu.regs.a%16 < imm8%16 ? 0x20:0;
+	cpu.regs.f|= 0x40;
+	cpu.regs.f|= res%256 == 0 ? 0x80:0;
+	cpu.regs.pc+=2;
 	return 0;
     }
 #define RST(VECTOR)				\
@@ -451,7 +486,6 @@ bool run_single_command(struct SM83& cpu) {
     COND_RET(0xd9, 1);//reti == ret because we dont do interrupts anyways
     case 0xe9:
 	cpu.regs.pc = cpu.regs.hl;
-	cpu.regs.pc++;
 	return 0;
     case 0xf9:
 	cpu.regs.sp = cpu.regs.hl;
@@ -468,8 +502,9 @@ bool run_single_command(struct SM83& cpu) {
 	return 0;
 
     case 0xcb: // prefix
-	fprintf(stderr, "0xcb prefix operations are not handled yet\n");
-	return 1;
+	return run_single_prefix_command(cpu);
+	// fprintf(stderr, "0xcb prefix operations are not handled yet\n");
+	// return 1;
     case 0xfb: //EI; no interrupts -> noop
 	cpu.regs.pc++;
 	return 0;
@@ -480,15 +515,109 @@ bool run_single_command(struct SM83& cpu) {
     return 1;
 }
 
+static inline bool run_single_prefix_command(struct SM83& cpu) {
+    uint8_t* instr = &cpu.mem[cpu.regs.pc];
+    assert(instr[0] == 0xcb);
+    uint8_t& hl_ = cpu.mem[cpu.regs.hl];
+    switch (instr[1]) {
+#define APPLY_XX_TO_ALL_REGS(OFFSET,XX,F,VAL)	\
+    XX(OFFSET+0, cpu.regs.b,F,VAL);		\
+    XX(OFFSET+1, cpu.regs.c,F,VAL);		\
+    XX(OFFSET+2, cpu.regs.d,F,VAL);		\
+    XX(OFFSET+3, cpu.regs.e,F,VAL);		\
+    XX(OFFSET+4, cpu.regs.h,F,VAL);		\
+    XX(OFFSET+5, cpu.regs.l,F,VAL);		\
+    XX(OFFSET+6,        hl_,F,VAL);		\
+    XX(OFFSET+7, cpu.regs.a,F,VAL)
+#define XX(OPCODE,REG,F,VAL)				    \
+	/*F is a macro that creates F, without zf*/	    \
+    case OPCODE:					    \
+	cpu.regs.f = F(cpu.regs.f, REG);		    \
+	REG        = VAL(cpu.regs.f, REG);		    \
+	cpu.regs.f|= REG==0? 0x80: 0x00;		    \
+	break;
+
+#define BIT7_CF(REG_F,REG) (REG>>7?0x10:0)
+#define BIT0_CF(REG_F,REG) (REG&1 ?0x10:0)
+
+#define RLC_VAL(REG_F,REG) ((REG<<1)|(REG>>7))
+    APPLY_XX_TO_ALL_REGS(0x00, XX, BIT7_CF, RLC_VAL);
+
+#define RRC_VAL(REG_F,REG) ((REG>>1)|(REG<<7))
+    APPLY_XX_TO_ALL_REGS(0x08, XX, BIT0_CF, RRC_VAL);
+
+#define RL_VAL(REG_F,REG)  ((REG<<1)|(REG_F&0x10?1:0))
+    APPLY_XX_TO_ALL_REGS(0x10, XX, BIT7_CF, RL_VAL);
+
+#define RR_VAL(REG_F,REG)  ((REG>>1)|(REG_F&0x10?0x80:0))
+    APPLY_XX_TO_ALL_REGS(0x18, XX, BIT0_CF, RR_VAL);
+
+#define SLA_VAL(REG_F,REG) (REG<<1)
+    APPLY_XX_TO_ALL_REGS(0x20, XX, BIT7_CF, SLA_VAL);
+
+#define SRA_VAL(REG_F,REG) ((REG>>1)|(REG&0x80))
+    APPLY_XX_TO_ALL_REGS(0x28, XX, BIT0_CF, SRA_VAL);
+
+#define SWAP_F(REG_F,REG) 0
+#define SWAP_VAL(REG_F,REG) ((REG>>4)|(REG<<4))
+    APPLY_XX_TO_ALL_REGS(0x30, XX, SWAP_F, SWAP_VAL);
+
+#define SRL_VAL(REG_F,REG) (REG>>1)
+    APPLY_XX_TO_ALL_REGS(0x38, XX, BIT0_CF, SRL_VAL);
+
+
+#define APPLY_BIT_OP(OFFSET,XX,OPERATION)	\
+    XX(OFFSET+0*8, 0, OPERATION);		\
+    XX(OFFSET+1*8, 1, OPERATION);		\
+    XX(OFFSET+2*8, 2, OPERATION);		\
+    XX(OFFSET+3*8, 3, OPERATION);		\
+    XX(OFFSET+4*8, 4, OPERATION);		\
+    XX(OFFSET+5*8, 5, OPERATION);		\
+    XX(OFFSET+6*8, 6, OPERATION);		\
+    XX(OFFSET+7*8, 7, OPERATION)
+
+#define APPLY_OPERATION_TO_ALL_REGS(OFFSET,BIT,OPERATION)	\
+    OPERATION(OFFSET+0, BIT, cpu.regs.b);			\
+    OPERATION(OFFSET+1, BIT, cpu.regs.c);			\
+    OPERATION(OFFSET+2, BIT, cpu.regs.d);			\
+    OPERATION(OFFSET+3, BIT, cpu.regs.e);			\
+    OPERATION(OFFSET+4, BIT, cpu.regs.h);			\
+    OPERATION(OFFSET+5, BIT, cpu.regs.l);			\
+    OPERATION(OFFSET+6, BIT,       hl_);			\
+    OPERATION(OFFSET+7, BIT, cpu.regs.a)
+
+#define BIT(OPCODE,BIT,REG)			\
+    case OPCODE:				\
+	cpu.regs.f&= 0x10;			\
+	cpu.regs.f|= 0x20|(REG&(1<<BIT)?0:0x80);\
+	break
+    APPLY_BIT_OP(0x40, APPLY_OPERATION_TO_ALL_REGS, BIT);
+
+#define RES(OPCODE,BIT,REG)			\
+    case OPCODE:				\
+	REG &= ~(1<<BIT);			\
+	break
+    APPLY_BIT_OP(0x80, APPLY_OPERATION_TO_ALL_REGS, RES);
+
+#define SET(OPCODE,BIT,REG)			\
+    case OPCODE:				\
+	REG |= 1<<BIT;				\
+	break
+    APPLY_BIT_OP(0xc0, APPLY_OPERATION_TO_ALL_REGS, RES);
+    }
+    cpu.regs.pc += 2;
+    return 0;
+}
+
 void print_regs(const struct SM83 cpu) {
-    printf("af: %04x\nbc: %04x\nde: %04x\nhl: %04x\npc: %04x\nsp: %04x\n"
+    printf("af: %04x\nbc: %04x\nde: %04x\nhl: %04x\nsp: %04x\npc: %04x\n"
 	   "z: %x, n: %x, h: %x, c: %x\n",
 	   cpu.regs.af,
 	   cpu.regs.bc,
 	   cpu.regs.de,
 	   cpu.regs.hl,
-	   cpu.regs.pc,
 	   cpu.regs.sp,
+	   cpu.regs.pc,
 	   cpu.regs.zf, cpu.regs.nf, cpu.regs.hf, cpu.regs.cf);
 }
 

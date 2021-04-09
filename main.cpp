@@ -10,7 +10,8 @@ int main(int argc, char* argv[]) {
     if (argv[1]) {
 	load_rom(cpu, argv[1]);
     } else {
-	fprintf(stderr, "usage: %s filename\n", argv[0]);
+	fprintf(stderr, "%susage:%s %s filename\n", "\033[91m",
+		"\033[0m", argv[0]);
     }
     run_debugger(cpu);
 }
