@@ -22,19 +22,24 @@ def main(argv):
         imm8 = int(line[1], base=16) if op['bytes'] >= 2 else None
         imm16= int(line[2]+line[1], base=16) if op['bytes'] == 3 else None
         
-        ret_val = len(op['operands'])
+        # ret_val = len(op['operands'])
+        ret_val = 1
         for operand in op['operands']:
             if operand['immediate'] == False:
                 fmt = "(%s)"
             else:
                 fmt = "%s"
             if 'r8' == operand['name']:
+                ret_val += 1
                 s = "$%02x"%(imm8 if imm8<128 else imm8-256)
             elif 'a8' == operand['name']:
+                ret_val += 1
                 s = "$ff00+$%02x"%imm8
             elif '8' in operand['name']:
+                ret_val += 1
                 s = "$%02x"%imm8
             elif '16' in operand['name']:
+                ret_val += 2
                 s = "$%04x"%imm16
             else:
                 s = (operand['name'])

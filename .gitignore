@@ -1,3 +1,4 @@
 bin/*
 objs/*
 *~
+cpu_instrs*
