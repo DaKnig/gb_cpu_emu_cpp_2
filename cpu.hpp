@@ -58,7 +58,3 @@ void load_rom(struct SM83& cpu, const char* filename);
 
 // resets the cpu block - all zeros, pc points to 0x100
 void clean_cpu(struct SM83& cpu);
-
-void run_debugger(struct SM83& cpu);
-
-int disassemble_instruction(uint8_t instr[4]);

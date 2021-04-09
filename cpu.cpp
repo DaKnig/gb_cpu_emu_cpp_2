@@ -508,92 +508,13 @@ void load_rom(struct SM83& cpu, const char* filename) {
 
 void clean_cpu(struct SM83& cpu) {
     memset(&cpu, 0xff, sizeof(cpu));
-    cpu.regs.pc = 0x100;
-}
-
-static inline void print_mem(const struct SM83& cpu, int offset) {
-    
-    printf("%04x ", offset&0xfff0);
-    
-    for (int i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
-	printf("%02x ", cpu.mem[i]);
-    }
-    for (int i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
-	putchar(isprint(cpu.mem[i])? (char) cpu.mem[i]: '.');
-    }
-    printf("\n%*c\n", 5+offset%16*3+1, '^');
-}
-
-void run_debugger(struct SM83& cpu) {
-    bool halt = false;
-    (void) halt;
-    char* line = (char*) malloc(20);
-    char* old_line = (char*) malloc(20);
-    size_t line_n = 15;
-    puts("starting debugger");
-    print_regs(cpu);
-    do {
-	free(old_line);
-	old_line=strdup(line);
-	printf("\n> ");
-	getline(&line, &line_n, stdin);
-	*strchr(line, '\n') = '\0';
-	if (line[0] == '\0')
-	    strcpy(line, old_line);
-	if (strcmp(line, "next") == 0 ||
-	    strcmp(line, "n") == 0) {
-	    
-	    struct SM83 copy = cpu;
-	    halt = run_single_command(cpu);
-	    print_mem(cpu, cpu.regs.pc);
-	    disassemble_instruction(&cpu.mem[cpu.regs.pc]);
-	    if (copy.regs.pc == cpu.regs.pc) {
-		printf("detected infinite loop at %04x\n", cpu.regs.pc);
-	    }
-	} else if (strstr(line, "mem ") == line) {
-	    line+=4;
-	    if (*line == '\0') {
-		printf("usage: mem addr");
-		continue;
-	    }
-	    int offset;
-	    sscanf(line, "%i", &offset);
-	    offset &= 0xffff;
-	    print_mem(cpu, offset);
-
-	    line-=4;
-	} else if (strcmp(line, "regs") == 0 ||
-		   strcmp(line, "r") == 0) {
-	    print_regs(cpu);
-	} else if (strstr(line, "disasm") == line ||
-		   strstr(line, "d") == line) {
-	    int offset = line[1]=='i'? strlen("disasm"): 1;
-	    line += offset;
-	    int addr;
-	    if (*line == '\0')
-		addr = cpu.regs.pc;
-	    else
-		sscanf(line, "%x", &addr);
-	    disassemble_instruction(&cpu.mem[addr&0xffff]);
-	    line -= offset;
-	}
-    } while (true);
-}
-
-int disassemble_instruction(uint8_t instr[4]) {
-    char command[50] = "";
-    snprintf(command, 49, "python disassemble.py %02x %02x %02x %02x",
-	     (int)instr[0], (int)instr[1], (int)instr[2], (int)instr[3]);
-    FILE* out_stream=popen(command, "r");
-    if (out_stream == NULL)
-	return -1;
-    char disasm[100]={0}; fread(disasm, 1, 99, out_stream);
-    strchr(disasm, '\0')[-1] = '\0';
-    int ret_val = pclose(out_stream);
-    printf("[python returned %d]\n", ret_val);
-    for (int i=0; i<ret_val; i++) {
-	printf("%02x ", instr[i]);
-    }
-    printf("%s", disasm);
-    return ret_val;
+    cpu.regs.pc = 0x0100;
+    // stuff set up by the bootrom
+    cpu.regs.af = 0x1180;
+    cpu.regs.bc = 0x0000;
+    cpu.regs.de = 0xff56;
+    cpu.regs.hl = 0x000d;
+    cpu.regs.sp = 0xfffe;
+    // setup constant [rLY] = 144 = 0x90 - for tests
+    cpu.mem[0xff44] = 0x90;
 }

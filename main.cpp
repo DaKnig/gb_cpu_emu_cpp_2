@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "cpu.hpp"
+#include "debugger.hpp"
 
 int main(int argc, char* argv[]) {
     struct SM83 cpu;
