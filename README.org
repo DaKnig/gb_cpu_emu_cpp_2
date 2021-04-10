@@ -1,0 +1,55 @@
+* A fast SM83 emulator (name pending^TM)!
+
+** goal
+
+making a very fast sm83 emulator. the sm83 is (supposedly) the cpu core in the
+game-boy. this is not a full gb emulator- it does not, and would not, emulate
+peripherals such as screen, mmio, the cartridge - only the cpu as if it was
+connected to a bus with 64kiB of RAM.
+
+the emulator should be able to load code from files, run single instruction,
+run in a debugger and maybe other things too, later.
+
+** level of completeness
+
+right now this is incomplete - can't even pass the relevant blargg's tests.
+currently, DAA does not work.
+to run one of his test roms, load it and run it until an infinite loop is
+detected. then check memory at $9800 (BG) which should contain the ASCII output.
+
+maybe add a simple debugger command to print the background as ascii text? must
+take care of the scroll registers too.
+
+before completion, this should have some tests to compare to more accurate
+and well known emulators, like SameBoy or BGB. low priority at the moment.
+
+** compilation
+
+#+BEGIN_SRC bash
+  make
+#+END_SRC
+
+** usage
+
+#+BEGIN_SRC bash
+  ./main memory_snapshot
+#+END_SRC
+
+most gb roms should load fine as if they were loaded onto a 32kiB RAM cartridge.
+if more than 32kiB are present, all bytes up to 64kiB would be loaded into
+$8000-$ffff in the memory space.
+
+** design considerations
+
+1. the traditional interpreter-based emulator model was chosen instead of a JIT
+based emulator as the expected workload is small chunks of code and compilation
+overhead might be too big.
+
+2. the Big Switch approach was chosen over any logic-based instruction decoding
+to increase performance, even if by a little. should investigate the performance
+cost incurred by more icache pressure.
+
+3. for disassembly, a python script with a (modified) json file from 
+https://gbdev.io/gb-opcodes//optables/classic were used- even if inefficient,
+the approach is simple and probably more correct and for now that is more
+important than the runtime speed of the debugger.
