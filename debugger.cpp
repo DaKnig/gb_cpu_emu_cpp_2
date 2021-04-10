@@ -93,8 +93,7 @@ void run_debugger(struct SM83& cpu) {
 		continue;
 	    }
 	    const char* second_arg = line+strlen(line)+1;
-	    int offset = strtol(second_arg, NULL, 0);// the 2nd arg
-	    offset &= 0xffff;
+	    uint16_t offset = strtoul(second_arg, NULL, 16);// the 2nd arg
 	    print_mem(cpu, offset);
 
 	} else if (strcmp(line, "regs") == 0 ||
@@ -103,12 +102,12 @@ void run_debugger(struct SM83& cpu) {
 	} else if (strcmp(line, "disasm") == 0 ||
 		   strcmp(line, "d") == 0) {
 	    char* second_arg = line+strlen(line)+1;
-	    int addr;
+	    uint16_t addr;
 	    if (argc == 1)
 		addr = cpu.regs.pc;
 	    else
-		addr = strtol(second_arg, NULL, 16);
-	    disassemble_instruction(&cpu.mem[addr&0xffff]);
+		addr = strtoul(second_arg, NULL, 16);
+	    disassemble_instruction(&cpu.mem[addr]);
 	} else if (strcmp(line, "breakpoints") == 0) {
 	    printf("breakpoints:\n");
 	    for (size_t i=0; i<breakpoints.size(); i++)
@@ -119,7 +118,7 @@ void run_debugger(struct SM83& cpu) {
 		puts("usage: break addr");
 		continue;
 	    }
-	    uint16_t bp = strtol(line+strlen(line)+1, NULL, 16) & 0xffff;
+	    uint16_t bp = strtoul(line+strlen(line)+1, NULL, 16);
 	    breakpoints.push_back(bp);
 	} else if (strcmp(line, "rembreak") == 0 ||
 		   strcmp(line, "rb") == 0) {
