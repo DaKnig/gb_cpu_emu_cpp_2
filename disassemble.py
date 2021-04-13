@@ -1,27 +1,38 @@
+#!/usr/bin/python3
 import json
 
 with open("Opcodes.json") as f:
     opcodes = json.load(f)
 
 un_op = opcodes['unprefixed']
-
+prefixed_op = opcodes['cbprefixed']
 
 
 def main(argv):
     line = list(map(lambda x: x.upper(), argv[1:]))
     disasm = ""
-    # line = list(map(lambda s: "0x"+s, line))
-    # breakpoint()
-    if line and "0x"+line[0] in un_op:
+    if line and line[0] == "CB":
+        op = prefixed_op["0x"+line[1]]
+        disasm += op['mnemonic'].lower() + " "
+
+        if op['bytes'] > len(line):
+            print(f"what the fuck. {line} should be {op}")
+            return(-1)
+        for operand in op['operands']:
+            disasm += operand['name'].lower() + ' '
+
+        ret_val = 2
+
+    elif line and "0x"+line[0] in un_op:
         op = un_op["0x"+line[0]]
         disasm += op['mnemonic'].lower() + " "
-        
+
         if op['bytes'] > len(line):
             print(f"what the fuck. {line} should be {op}")
             return(-1)
         imm8 = int(line[1], base=16) if op['bytes'] >= 2 else None
         imm16= int(line[2]+line[1], base=16) if op['bytes'] == 3 else None
-        
+
         # ret_val = len(op['operands'])
         ret_val = 1
         for operand in op['operands']:
@@ -48,7 +59,7 @@ def main(argv):
         disasm = "unknown `%s`"%line[0]
         ret_val = -2
     print(disasm, end='')
-    
+
     return ret_val
 
 from sys import argv
