@@ -163,8 +163,8 @@ bool run_single_command(struct SM83& cpu) {
 	    uint32_t new_val = cpu.regs.hl+cpu.regs. OPERAND ;		\
 	    cpu.regs.f &= 0x80;						\
 	    cpu.regs.f |= (new_val>0xffff ? 0x10:0);			\
-	    int bottom_12 = (cpu.regs.hl&0x3fff)+(cpu.regs. OPERAND&0x3fff); \
-	    cpu.regs.f |= (bottom_12>0x3fff ? 0x20:0);			\
+	    int bottom_12 = (cpu.regs.hl&0x0fff)+(cpu.regs. OPERAND&0x0fff); \
+	    cpu.regs.f |= (bottom_12>0x0fff ? 0x20:0);			\
 	    cpu.regs.hl= new_val;					\
 	    cpu.regs.pc++;						\
 	    return 0;							\
@@ -435,13 +435,19 @@ bool run_single_command(struct SM83& cpu) {
     PUSH(0xe5, hl);
     PUSH(0xf5, af);
 
-#define OP_A_D8(OPCODE, OP, NF)					\
+#define OP_A_D8(OPCODE, OP, NF, HF)				\
     case OPCODE:						\
         do {							\
 	    unsigned res = cpu.regs.a OP imm8;			\
 	    int h = ((uint8_t) (cpu.regs.a%16 OP imm8%16)) > 15;\
 	    cpu.regs.a = res;					\
 	    cpu.regs.f = res>255? 0x10:0;			\
+	    cpu.regs.f|=					\
+		HF == 0? 0 :					\
+		HF == 1? 0x20 :					\
+		HF =='h'?					\
+		  h? 0x20 : 0					\
+		: 0xff;						\
 	    cpu.regs.f|= h ? 0x20:0;				\
 	    cpu.regs.f|= NF? 0x40:0;				\
 	    cpu.regs.f|= cpu.regs.a==0? 0x80:0;			\
@@ -449,13 +455,13 @@ bool run_single_command(struct SM83& cpu) {
 	    return 0;						\
 	} while(0)
 
-    OP_A_D8(0xc6,+,0);
-    OP_A_D8(0xce,+cf+,0);
-    OP_A_D8(0xd6,-,1);
-    OP_A_D8(0xde,-cf-,1);
-    OP_A_D8(0xe6,&,0);
-    OP_A_D8(0xee,^,0);
-    OP_A_D8(0xf6,|,0);
+    OP_A_D8(0xc6,+,0,'h');
+    OP_A_D8(0xce,+cf+,0,'h');
+    OP_A_D8(0xd6,-,1,'h');
+    OP_A_D8(0xde,-cf-,1,'h');
+    OP_A_D8(0xe6,&,0,1);
+    OP_A_D8(0xee,^,0,0);
+    OP_A_D8(0xf6,|,0,0);
     case 0xfe: {
 	unsigned res = cpu.regs.a - imm8;
 	cpu.regs.f = res>255 ? 0x10:0;
@@ -532,10 +538,14 @@ static inline bool run_single_prefix_command(struct SM83& cpu) {
 #define XX(OPCODE,REG,F,VAL)				    \
 	/*F is a macro that creates F, without zf*/	    \
     case OPCODE:					    \
-	cpu.regs.f = F(cpu.regs.f, REG);		    \
-	REG        = VAL(cpu.regs.f, REG);		    \
-	cpu.regs.f|= REG==0? 0x80: 0x00;		    \
-	break;
+	do {						    \
+	    uint8_t old_f = cpu.regs.f;			    \
+	    (void) old_f;				    \
+	    cpu.regs.f = F(old_f, REG);			    \
+	    REG        = VAL(old_f, REG);		    \
+	    cpu.regs.f|= REG==0? 0x80: 0x00;		    \
+	} while(0);					    \
+	break
 
 #define BIT7_CF(REG_F,REG) (REG>>7?0x10:0)
 #define BIT0_CF(REG_F,REG) (REG&1 ?0x10:0)
