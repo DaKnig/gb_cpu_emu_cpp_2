@@ -2,3 +2,6 @@ bin/*
 objs/*
 *~
 cpu_instrs*
+.gitignore
+log.txt
+Gameboy-logs

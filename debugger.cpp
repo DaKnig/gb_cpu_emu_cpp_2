@@ -10,20 +10,31 @@ using std::vector;
 using std::find;
 
 
-static inline void print_mem(const struct SM83& cpu, int offset) {
-
+static inline void print_mem_at_addr(struct SM83& cpu, unsigned offset) {
     printf("%04x ", offset&0xfff0);
 
-    for (int i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
+    for (unsigned i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
 	printf("%02x ", cpu.mem[i]);
     }
-    for (int i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
+    for (unsigned i=offset&0xfff0; (i>>4) == (offset>>4); i++) {
 	putchar(isprint(cpu.mem[i])? (char) cpu.mem[i]: '.');
     }
     printf("\n%*c\n", 5+offset%16*3+1, '^');
 }
 
-static inline size_t sep_args(char* line) {
+static inline void print_mem(struct SM83& cpu, char* line, size_t argc) {
+
+    if (argc == 1) {
+	printf("usage: mem addr\n");
+	return;
+    }
+    const char* second_arg = line+strlen(line)+1;
+    uint16_t offset = strtoul(second_arg, NULL, 16);// the 2nd arg
+
+    print_mem_at_addr(cpu, offset);
+}
+
+static inline size_t sep_args(char* line) { ////### UNSAFE, REWRITE THIS!
     size_t argc = 0;
     for(; *line != '\0'; line++)
 	if (*line == ' ' || *line == '\n') {
@@ -33,7 +44,7 @@ static inline size_t sep_args(char* line) {
     return argc;
 }
 
-static inline void draw_screen(const struct SM83& cpu) {
+static inline void draw_screen(struct SM83& cpu, char* line, size_t argc){
     const uint8_t SCX_C = cpu.mem[0xff43]/8;
     const uint8_t SCY_C = cpu.mem[0xff42]/8;
     const uint16_t BG_MAP = 0x9800;
@@ -48,7 +59,7 @@ static inline void draw_screen(const struct SM83& cpu) {
     puts("\n   01234567890123456789");
 }
 
-static inline bool next_instruction(struct SM83& cpu, char* line, size_t argc) {
+static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
     int times = 1;
     if (argc > 1)
 	times = atoi(1+strchr(line, '\0'));
@@ -57,7 +68,7 @@ static inline bool next_instruction(struct SM83& cpu, char* line, size_t argc) {
     for (; times > 0; times--) {
 	copy = cpu;
 	halt = run_single_command(cpu);
-	print_mem(cpu, cpu.regs.pc);
+	print_mem_at_addr(cpu, cpu.regs.pc);
 	if (times != 1) {
 	    printf("\033[93m%04x\033[0m ", cpu.regs.pc);
 	    disassemble_instruction(&cpu.mem[cpu.regs.pc]);
@@ -67,12 +78,16 @@ static inline bool next_instruction(struct SM83& cpu, char* line, size_t argc) {
     if (copy.regs.pc == cpu.regs.pc) {
 	printf("detected infinite loop at %04x\n", cpu.regs.pc);
     }
-    return halt;
+    cpu.misc.halt = halt;
 }
-static inline bool run_log(struct SM83& cpu, vector<uint16_t>& breakpoints,
-    FILE* log_file) {
-    uint16_t prev_pc = cpu.regs.pc+1;
+static inline void run_log(struct SM83& cpu, char* line, size_t argc) {
     bool halt;
+    FILE* log_file = fopen(argc>1? strchr(line,'\0')+1: "log.txt", "wx");
+    if (!log_file) {
+	perror("Can't open log file");
+	return;
+    }
+    uint16_t prev_pc = cpu.regs.pc+1;
     do {
 	prev_pc = cpu.regs.pc;
 	fprintf(log_file,
@@ -92,22 +107,90 @@ static inline bool run_log(struct SM83& cpu, vector<uint16_t>& breakpoints,
 
 	halt = run_single_command(cpu);
     } while(!halt && prev_pc != cpu.regs.pc &&
-	   find(breakpoints.begin(), breakpoints.end(), cpu.regs.pc) ==
-	   breakpoints.end());
+	    find(
+		cpu.misc.breakpoints.begin(),
+		cpu.misc.breakpoints.end(), cpu.regs.pc) ==
+	    cpu.misc.breakpoints.end());
     if (prev_pc == cpu.regs.pc) {
 	printf("detected infinite loop at %04x\n", cpu.regs.pc);
     }
-    return halt;
+    fclose(log_file);
+    cpu.misc.halt = halt;
+}
+
+static inline void continue_exec(struct SM83& cpu, char* line, size_t argc) {
+    (void) argc;
+    (void) line;
+    uint16_t prev_pc = cpu.regs.pc+1;
+    if (cpu.misc.halt)
+	return;
+    bool hit_breakpoint = false;
+    while(!cpu.misc.halt && prev_pc != cpu.regs.pc && !hit_breakpoint) {
+	prev_pc = cpu.regs.pc;
+	cpu.misc.halt = run_single_command(cpu);
+	hit_breakpoint = find(
+	    cpu.misc.breakpoints.begin(),
+	    cpu.misc.breakpoints.end(), cpu.regs.pc) !=
+	    cpu.misc.breakpoints.end();
+
+    }
+    if (prev_pc == cpu.regs.pc) {
+	printf("detected infinite loop at %04x\n", cpu.regs.pc);
+    }
+}
+
+static inline void disasm(struct SM83& cpu, char* line, size_t argc) {
+    char* second_arg = line+strlen(line)+1;
+    uint16_t addr;
+    if (argc == 1)
+	addr = cpu.regs.pc;
+    else
+	addr = strtoul(second_arg, NULL, 16);
+    disassemble_instruction(&cpu.mem[addr]);
+}
+
+static inline void print_regs_cmd(struct SM83& cpu, char* line, size_t argc) {
+    print_regs(cpu);
+}
+
+struct command {
+    void (*fun) (struct SM83& cpu, char* line, size_t argc);
+    const char* name;
+    const char* help;
+};
+
+static inline int match_str(struct command commands[], const char* str) {
+    /// return the index of the string that matches *str* the best in *strings
+    /// return -1 upon failure
+
+    int ret_val = -1;
+    for (unsigned i=0; commands[i].name != NULL; i++) {
+	if (strstr(commands[i].name, str) == commands[i].name) {
+	    // can later upgrade to something better
+	    ret_val = i;
+	}
+    }
+    return ret_val;
 }
 
 void run_debugger(struct SM83& cpu) {
-    bool halt = false;
-    (void) halt;
     char* line = (char*) calloc(20,1);
     char* old_line = (char*) calloc(20, 1);
     size_t line_n = 15;
 
-    std::vector<uint16_t> breakpoints;
+
+
+    struct command commands[] = {
+	{next_instruction, "next", "executes one instruction"},
+	{continue_exec, "continue","continue executing until next stop"},
+	{print_mem, "mem", "print the memory around specified address"},
+	{print_regs_cmd, "regs", "print the values of the regs and flags"},
+	{disasm, "disasm", "disassemble at specified address"},
+	{draw_screen, "draw_screen", "print vram as ascii matrix"},
+	{run_log, "run_log", "continue execution and log reg values into "
+	 "a file"},
+	{NULL, NULL, NULL} // null delimited
+    };
 
     puts("starting debugger");
     print_regs(cpu);
@@ -123,48 +206,31 @@ void run_debugger(struct SM83& cpu) {
 	    strcpy(line, old_line);
 	size_t argc = sep_args(line);
 
-	if (strcmp(line, "next") == 0 ||
-	    strcmp(line, "n") == 0) {
-	    halt = next_instruction(cpu, line, argc);
-	} else if (strcmp(line, "continue") == 0 ||
-		   strcmp(line, "c") == 0) {
-	    uint16_t prev_pc = cpu.regs.pc+1;
-	    if (halt)
-		continue;
-	    do {
-		prev_pc = cpu.regs.pc;
-		halt = run_single_command(cpu);
-	    } while(!halt && prev_pc != cpu.regs.pc &&
-		   find(breakpoints.begin(), breakpoints.end(), cpu.regs.pc) ==
-		   breakpoints.end());
-	    if (prev_pc == cpu.regs.pc) {
-		printf("detected infinite loop at %04x\n", cpu.regs.pc);
-	    }
-	} else if (strcmp(line, "mem") == 0) {
+	int matching_index = match_str(commands, line);
+	if (matching_index != -1) {
+	    commands[matching_index].fun(cpu, line, argc);
+	} else if (strstr("help", line)) {
 	    if (argc == 1) {
-		printf("usage: mem addr");
-		continue;
+		printf("list of commands:\n");
+		for (size_t i=0; commands[i].name != NULL; i++) {
+		    printf("\033[1m%s\033[0m -- %s.\n",
+			commands[i].name, commands[i].help);
+		}
+	    } else {
+		char* second_arg = line+strlen(line)+1;
+		size_t i;
+		for (i=0; commands[i].name != NULL; i++) { // find the command
+		    if (strstr(commands[i].name, second_arg) ==
+			commands[i].name) {
+			break;
+		    }
+		}
+		printf("%s.\n", commands[i].help);
 	    }
-	    const char* second_arg = line+strlen(line)+1;
-	    uint16_t offset = strtoul(second_arg, NULL, 16);// the 2nd arg
-	    print_mem(cpu, offset);
-
-	} else if (strcmp(line, "regs") == 0 ||
-		   strcmp(line, "r") == 0) {
-	    print_regs(cpu);
-	} else if (strcmp(line, "disasm") == 0 ||
-		   strcmp(line, "d") == 0) {
-	    char* second_arg = line+strlen(line)+1;
-	    uint16_t addr;
-	    if (argc == 1)
-		addr = cpu.regs.pc;
-	    else
-		addr = strtoul(second_arg, NULL, 16);
-	    disassemble_instruction(&cpu.mem[addr]);
 	} else if (strcmp(line, "breakpoints") == 0) {
 	    printf("breakpoints:\n");
-	    for (size_t i=0; i<breakpoints.size(); i++)
-		printf("%3zd %04x\n", i, breakpoints[i]);
+	    for (size_t i=0; i<cpu.misc.breakpoints.size(); i++)
+		printf("%3zd %04x\n", i, cpu.misc.breakpoints[i]);
 	} else if (strcmp(line, "break") == 0 ||
 		   strcmp(line, "b") == 0) {
 	    if (argc == 1) {
@@ -172,7 +238,7 @@ void run_debugger(struct SM83& cpu) {
 		continue;
 	    }
 	    uint16_t bp = strtoul(line+strlen(line)+1, NULL, 16);
-	    breakpoints.push_back(bp);
+	    cpu.misc.breakpoints.push_back(bp);
 	} else if (strcmp(line, "rembreak") == 0 ||
 		   strcmp(line, "rb") == 0) {
 	    if (argc == 1) {
@@ -180,27 +246,15 @@ void run_debugger(struct SM83& cpu) {
 		continue;
 	    }
 	    size_t i = strtoul(line+strlen(line)+1, NULL, 16);
-	    if (i < breakpoints.size())
-		breakpoints.erase(breakpoints.begin()+i);
-	} else if (strcmp(line, "draw_screen") == 0) {
-	    draw_screen(cpu);
-	} else if (strcmp(line, "run_log") == 0) {
-	    FILE* log_file=fopen(argc==1? "log.txt":line+strlen(line)+1, "a");
-	    if (!log_file) {
-		perror("Can't open log file");
-	    } else if (ftell(log_file) != 0) {
-		puts("log file already exists");
-	    } else {
-		halt = run_log(cpu, breakpoints, log_file);
-		fclose(log_file);
-	    }
+	    if (i < cpu.misc.breakpoints.size())
+		cpu.misc.breakpoints.erase(cpu.misc.breakpoints.begin()+i);
 	} else {
 	    printf("unrecognized command `%s`\n", line);
 	}
     } while (!feof(stdin));
 }
 
-int disassemble_instruction(uint8_t instr[4]) {
+int disassemble_instruction(const uint8_t instr[4]) {
     char command[50] = "";
     snprintf(command, 49, "python disassemble.py %02x %02x %02x %02x",
 	     (int)instr[0], (int)instr[1], (int)instr[2], (int)instr[3]);

@@ -18,6 +18,7 @@ bool run_single_command(struct SM83& cpu) {
 
     const bool zf =     (cpu.regs.f>>7), nf = 1 & (cpu.regs.f>>6);
     const bool hf = 1 & (cpu.regs.f>>5), cf = 1 & (cpu.regs.f>>4);
+    (void)hf, (void)nf;
 
     switch (instr[0]) {
     case 0x00:
@@ -646,7 +647,7 @@ void load_rom(struct SM83& cpu, const char* filename) {
 }
 
 void clean_cpu(struct SM83& cpu) {
-    memset(&cpu, 0xff, sizeof(cpu));
+    memset(&cpu.mem, 0x00, sizeof(cpu.mem));
     cpu.regs.pc = 0x0100;
     // stuff set up by the bootrom
     cpu.regs.af = 0x1180;
@@ -656,4 +657,7 @@ void clean_cpu(struct SM83& cpu) {
     cpu.regs.sp = 0xfffe;
     // setup constant [rLY] = 144 = 0x90 - for tests
     cpu.mem[0xff44] = 0x90;
+    // start non halted and without breakpoints
+    cpu.misc.halt = false;
+    cpu.misc.breakpoints.clear();
 }

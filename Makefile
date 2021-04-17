@@ -1,4 +1,4 @@
-CFLAGS=-O0 -ggdb -Wall
+CFLAGS=-O0 -ggdb -Wall --std=gnu++17 -Werror
 CC=g++
 OBJS=objs/cpu.o objs/main.o objs/debugger.o
 
