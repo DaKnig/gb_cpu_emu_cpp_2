@@ -548,8 +548,6 @@ bool run_single_command(struct SM83& cpu) {
 
     case 0xcb: // prefix
 	return run_single_prefix_command(cpu);
-	// fprintf(stderr, "0xcb prefix operations are not handled yet\n");
-	// return 1;
     case 0xfb: //EI; no interrupts -> noop
 	cpu.regs.pc++;
 	return 0;
@@ -656,6 +654,15 @@ static inline bool run_single_prefix_command(struct SM83& cpu) {
     }
     cpu.regs.pc += 2;
     return 0;
+}
+
+void run_cpu(struct SM83& cpu) {
+    bool halting;
+    uint16_t prev_pc;
+    do {
+	prev_pc = cpu.regs.pc;
+	halting = run_single_command(cpu);
+    } while (!halting && prev_pc != cpu.regs.pc) ;
 }
 
 void print_regs(const struct SM83 cpu) {

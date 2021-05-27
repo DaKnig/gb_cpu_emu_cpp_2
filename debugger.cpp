@@ -44,7 +44,7 @@ static inline size_t sep_args(char* line) { ////### UNSAFE, REWRITE THIS!
     return argc;
 }
 
-static inline void draw_screen(struct SM83& cpu, char* line, size_t argc){
+static inline void draw_screen(struct SM83& cpu, char*, size_t){
     const uint8_t SCX_C = cpu.mem[0xff43]/8;
     const uint8_t SCY_C = cpu.mem[0xff42]/8;
     const uint16_t BG_MAP = 0x9800;
@@ -80,7 +80,7 @@ static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
     }
     cpu.misc.halt = halt;
 }
-static inline void run_log(struct SM83& cpu, char* line, size_t argc) {
+void run_log(struct SM83& cpu, char* line, size_t argc) {
     bool halt;
     FILE* log_file = fopen(argc>1? strchr(line,'\0')+1: "log.txt", "wx");
     if (!log_file) {
