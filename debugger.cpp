@@ -81,6 +81,14 @@ static inline void next_instr(struct SM83& cpu, char* line, size_t argc) {
     }
     cpu.misc.halt = halt;
 }
+
+static inline void exit_debugger(SM83&, char* line, size_t argc) {
+    int status = 0;
+    if (argc > 1)
+	status = atoi(1+strchr(line, '\0'));
+    exit(status);
+}
+
 void run_log(struct SM83& cpu, char* line, size_t argc) {
     bool halt;
     FILE* log_file=fopen(argc>1? strchr(line,'\0')+1: "/tmp/log.txt", "wx");
@@ -332,6 +340,8 @@ void run_debugger(struct SM83& cpu) {
 	{draw_screen, "draw_screen", "print vram as ascii matrix"},
 	{run_log, "run_log", "continue execution and log reg values into "
 	 "a file"},
+	{exit_debugger, "exit", "call exit() with specified value, defaults"
+	 "to 0"},
 	{set_prompt, "set_prompt", "customize the prompt by using a format"
 	 "stirng"},
 	{get_prompt, "get_prompt", "print the format string for the prompt"},
