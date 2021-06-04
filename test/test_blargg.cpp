@@ -49,7 +49,7 @@ int main(int, char*[]) {
 
 	char screen[20][30] = {{0}};
 	draw_screen(cpu, screen);
-	
+
 	char* relevant_line = screen[16];
 	if (strstr(relevant_line, "Failed") != NULL) {
 	    for (unsigned i=0;i<ELEM(screen);i++)
@@ -57,7 +57,7 @@ int main(int, char*[]) {
 	} else if (strstr(relevant_line, "Passed") != NULL) {
 	    printf("%s Passed!\n", test_rom_names[i]);
 	} else {
-	    printf("error: `%s` doesnt have `Passed` or `Failed`", 
+	    printf("error: `%s` doesnt have `Passed` or `Failed`",
 		   relevant_line);
 	}
     }

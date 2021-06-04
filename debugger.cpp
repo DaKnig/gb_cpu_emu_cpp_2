@@ -82,6 +82,22 @@ static inline void next_instr(struct SM83& cpu, char* line, size_t argc) {
     cpu.misc.halt = halt;
 }
 
+static inline void quiet_next(SM83& cpu, char* line, size_t argc) {
+    int times = 1;
+    if (argc > 1)
+	times = atoi(1+strchr(line, '\0'));
+    struct SM83 copy = cpu;
+    bool halt = cpu.misc.halt;
+    for (; times > 0; times--) {
+	copy = cpu;
+	halt = run_single_command(cpu);
+    }
+    if (copy.regs.pc == cpu.regs.pc) {
+	printf("detected infinite loop at %04x\n", cpu.regs.pc);
+    }
+    cpu.misc.halt = halt;
+}
+
 static inline void exit_debugger(SM83&, char* line, size_t argc) {
     int status = 0;
     if (argc > 1)
@@ -156,6 +172,7 @@ static inline void disasm(struct SM83& cpu, char* line, size_t argc) {
     else
 	addr = strtoul(second_arg, NULL, 16);
     disassemble_instruction(&cpu.mem[addr]);
+    puts("");
 }
 
 static inline void set_prompt(struct SM83&, char* line, size_t argc) {
@@ -261,7 +278,7 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 		    // try to match a double reg
 		    for (const char* reg = *double_regs; reg!=NULL; reg++) {
 			if (strstr(format, reg)==format) {
-			    offset = cpu.regs.double_regs[reg-*double_regs];
+			    offset = cpu.regs.registers[reg-*double_regs];
 			    format+=2;
 			    goto finish_matching;
 			}
@@ -295,7 +312,7 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 	    }
 	    for (const char* reg = *double_regs; reg!=NULL; reg++) {
 		if (strstr(format, reg)==format) {
-		    printf("%04x", cpu.regs.double_regs[reg-*double_regs]);
+		    printf("%04x", cpu.regs.registers[reg-*double_regs]);
 		    format+=2;
 		    chars+=4;
 		    goto next_char;
@@ -306,9 +323,9 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 		    // gotta check top-reg [abdh] or bottom-reg [fcel]
 		    unsigned reg_num = reg-*regs;
 		    if (reg_num%2==0) //top-reg
-			printf("%02x", cpu.regs.double_regs[reg_num/2]>>8);
+			printf("%02x", cpu.regs.registers[reg_num/2]>>8);
 		    else //bottom-reg
-			printf("%02x", cpu.regs.double_regs[reg_num/2]&0xff);
+			printf("%02x", cpu.regs.registers[reg_num/2]&0xff);
 		    format++;
 		    chars+=2;
 		    goto next_char;
@@ -327,7 +344,7 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 }
 
 void run_debugger(struct SM83& cpu) {
-    char* line = (char*) calloc(20,1);
+    char* line = (char*) calloc(20,1); strcpy(line, "next 0"); // no-op
     char* old_line = (char*) calloc(20, 1);
     size_t line_n = 15;
 
@@ -340,6 +357,7 @@ void run_debugger(struct SM83& cpu) {
 	{draw_screen, "draw_screen", "print vram as ascii matrix"},
 	{run_log, "run_log", "continue execution and log reg values into "
 	 "a file"},
+	{quiet_next, "qnext", "same as `next` without any output"},
 	{exit_debugger, "exit", "call exit() with specified value, defaults"
 	 "to 0"},
 	{set_prompt, "set_prompt", "customize the prompt by using a format"
