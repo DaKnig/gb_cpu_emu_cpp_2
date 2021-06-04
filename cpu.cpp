@@ -172,8 +172,9 @@ bool run_single_command(struct SM83& cpu) {
 	cpu.regs.pc++;
 	return 0;
 
-    case 0x08:
-	cpu.mem[imm16] = cpu.regs.sp;
+    case 0x08: // ld (a16), sp
+	cpu.mem[imm16] = cpu.regs.sp & 0xff;
+	cpu.mem[imm16+1]=cpu.regs.sp >> 8;
 	cpu.regs.pc+=3;
 	return 0;
 
