@@ -63,7 +63,7 @@ bool run_single_command(struct SM83& cpu) {
 #define REG_INC_OR_DEC(OPCODE,REG,OP)					\
     case OPCODE:							\
 	do {								\
-	    uint32_t old_val = cpu.regs. REG;				\
+	    uint32_t old_val = REG;					\
 	    uint32_t new_val = OP old_val;				\
 	    cpu.regs.f = cpu.regs.f & 0x10; /* only keep cf */		\
 	    cpu.regs.f|= (new_val&0xff) == 0? 0x80 : 0x00;		\
@@ -71,26 +71,20 @@ bool run_single_command(struct SM83& cpu) {
 	    if ((# OP [0] == '-' && new_val%16 == 0xf) ||		\
 		(# OP [0] == '+' && new_val%16 == 0x0))	/*hf*/		\
 		cpu.regs.f|= 0x20;					\
-	    cpu.regs. REG = new_val;					\
+	    REG = new_val;						\
 	    cpu.regs.pc++;						\
 	    return 0;							\
 	} while(0)
 
-    REG_INC_OR_DEC(0x04, b, ++);
-    REG_INC_OR_DEC(0x14, d, ++);
-    REG_INC_OR_DEC(0x24, h, ++);
-    case 0x34:
-	cpu.mem[cpu.regs.hl] ++;
-	cpu.regs.pc++;
-	return 0;
+    REG_INC_OR_DEC(0x04, cpu.regs.b, ++);
+    REG_INC_OR_DEC(0x14, cpu.regs.d, ++);
+    REG_INC_OR_DEC(0x24, cpu.regs.h, ++);
+    REG_INC_OR_DEC(0x34, cpu.mem[cpu.regs.hl], ++);
 
-    REG_INC_OR_DEC(0x05, b, --);
-    REG_INC_OR_DEC(0x15, d, --);
-    REG_INC_OR_DEC(0x25, h, --);
-    case 0x35:
-	cpu.mem[cpu.regs.hl] --;
-	cpu.regs.pc++;
-	return 0;
+    REG_INC_OR_DEC(0x05, cpu.regs.b, --);
+    REG_INC_OR_DEC(0x15, cpu.regs.d, --);
+    REG_INC_OR_DEC(0x25, cpu.regs.h, --);
+    REG_INC_OR_DEC(0x35, cpu.mem[cpu.regs.hl], --);
 
     LOAD(0x06, b, imm8, 2);
     LOAD(0x16, d, imm8, 2);
@@ -230,15 +224,15 @@ bool run_single_command(struct SM83& cpu) {
     DOUBLE_REG_INC_OR_DEC(0x2b, hl, --);
     DOUBLE_REG_INC_OR_DEC(0x3b, sp, --);
 
-    REG_INC_OR_DEC(0x0c, c, ++);
-    REG_INC_OR_DEC(0x1c, e, ++);
-    REG_INC_OR_DEC(0x2c, l, ++);
-    REG_INC_OR_DEC(0x3c, a, ++);
+    REG_INC_OR_DEC(0x0c, cpu.regs.c, ++);
+    REG_INC_OR_DEC(0x1c, cpu.regs.e, ++);
+    REG_INC_OR_DEC(0x2c, cpu.regs.l, ++);
+    REG_INC_OR_DEC(0x3c, cpu.regs.a, ++);
 
-    REG_INC_OR_DEC(0x0d, c, --);
-    REG_INC_OR_DEC(0x1d, e, --);
-    REG_INC_OR_DEC(0x2d, l, --);
-    REG_INC_OR_DEC(0x3d, a, --);
+    REG_INC_OR_DEC(0x0d, cpu.regs.c, --);
+    REG_INC_OR_DEC(0x1d, cpu.regs.e, --);
+    REG_INC_OR_DEC(0x2d, cpu.regs.l, --);
+    REG_INC_OR_DEC(0x3d, cpu.regs.a, --);
 
     LOAD(0x0e, c, imm8, 2);
     LOAD(0x1e, e, imm8, 2);
@@ -519,14 +513,24 @@ bool run_single_command(struct SM83& cpu) {
     RST(0x20); RST(0x28);
     RST(0x30); RST(0x38);
 
-    case 0xe8: // ADD SP, r8
+    case 0xe8: { // ADD SP, r8
+	unsigned bottom_8_bits = (cpu.regs.sp & 0xff) + imm8;
+	cpu.regs.f = bottom_8_bits > 255 ? 0x10:0;
+	cpu.regs.f|= (bottom_8_bits&0xf) < (cpu.regs.sp&0xf) ? 0x20:0;
+
 	cpu.regs.sp += (int8_t) imm8;
 	cpu.regs.pc += 2;
 	return 0;
-    case 0xf8: //`LD HL, SP + r8
+    }
+    case 0xf8: { // LD HL, SP + r8
+	unsigned bottom_8_bits = (cpu.regs.sp & 0xff) + imm8;
+	cpu.regs.f = bottom_8_bits > 255 ? 0x10:0;
+	cpu.regs.f|= (bottom_8_bits&0xf) < (cpu.regs.sp&0xf) ? 0x20:0;
+
 	cpu.regs.hl = cpu.regs.sp + (int8_t) imm8;
 	cpu.regs.pc += 2;
 	return 0;
+    }
     COND_RET(0xc9, 1);
     COND_RET(0xd9, 1);//reti == ret because we dont do interrupts anyways
     case 0xe9:
