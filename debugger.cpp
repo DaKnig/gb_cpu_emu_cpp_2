@@ -60,7 +60,7 @@ static inline void draw_screen(struct SM83& cpu, char*, size_t) {
     puts("\n   01234567890123456789");
 }
 
-static inline void next_instr(struct SM83& cpu, char* line, size_t argc) {
+static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
     int times = 1;
     if (argc > 1)
 	times = atoi(1+strchr(line, '\0'));
@@ -184,7 +184,7 @@ static inline void set_prompt(struct SM83&, char* line, size_t argc) {
 	     " - %[hl] - the value hl points to in memory, %02x\n"
 	     " - %(a|f|b|c|d|e|h|l) - the register, %02x\n"
 	     " - %disasm - disassembly of the instruction at pc\n"
-	     " - %mem((AF|BC|DE|HL|PC|SP)) - \"memory line\" around the mem "
+	     " - %mem((af|bc|de|hl|pc|sp)) - \"memory line\" around the mem "
 	     "location pointed by the double register\n"
 	     " - %mem(c) - prints the byte at 0xff00+c, %02x\n"
 	     " - %%, \\n, \\t - like in printf\n");
@@ -349,7 +349,7 @@ void run_debugger(struct SM83& cpu) {
     size_t line_n = 15;
 
     struct command commands[] = {
-	{next_instr, "next", "executes one instruction"},
+	{next_instruction, "next", "executes one instruction"},
 	{continue_exec, "continue","continue executing until next stop"},
 	{print_mem, "mem", "print the memory around specified address"},
 	{print_regs_cmd, "regs", "print the values of the regs and flags"},
