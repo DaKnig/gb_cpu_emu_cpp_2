@@ -62,8 +62,12 @@ static inline void draw_screen(struct SM83& cpu, char*, size_t) {
 
 static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
     int times = 1;
-    if (argc > 1)
+    if (argc > 1) {
 	times = atoi(1+strchr(line, '\0'));
+	if (times == 0) { // do nothing
+	    return;
+	}
+    }
     struct SM83 copy = cpu;
     bool halt = cpu.misc.halt;
     for (; times > 0; times--) {
@@ -347,6 +351,8 @@ void run_debugger(struct SM83& cpu) {
     char* line = (char*) calloc(20,1); strcpy(line, "next 0"); // no-op
     char* old_line = (char*) calloc(20, 1);
     size_t line_n = 15;
+    size_t argc = 2;
+    size_t old_argc;
 
     struct command commands[] = {
 	{next_instruction, "next", "executes one instruction"},
@@ -373,15 +379,19 @@ void run_debugger(struct SM83& cpu) {
     do {
 	free(old_line);
 	old_line=strdup(line);
+	old_argc=argc;
 	// printf("\033[93m%04x\033[0m ", cpu.regs.pc); // print pc in yellow
 	// disassemble_instruction(&cpu.mem[cpu.regs.pc]); // print disassembly
 	// printf("\n > ");
 	pretty_printer(prompt, cpu);
 	getline(&line, &line_n, stdin);
 
-	if (line[0] == '\n')
+	if (line[0] == '\n') {
 	    strcpy(line, old_line);
-	size_t argc = sep_args(line);
+	    argc = old_argc;
+	} else {
+	    argc = sep_args(line);
+	}
 
 	int matching_index = match_str(commands, line);
 	if (matching_index != -1) {
