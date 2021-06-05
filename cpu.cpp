@@ -118,17 +118,55 @@ bool run_single_command(struct SM83& cpu) {
 	return 0;
     // https://github.com/pinobatch/numism/blob/main/docs/gb_emu_testing.md
     case 0x27: {// DAA
-	cpu.regs.f |= (nf == 0 && cpu.regs.a >= 0x9a) << 4;
-	cpu.regs.f |= (nf == 0 && cpu.regs.a % 16 > 10) << 5;
+	{
+	    int16_t result = cpu.regs.af >> 8;
+	    enum {GB_ZERO_FLAG=0x80, GB_SUBTRACT_FLAG=0x40,
+		GB_HALF_CARRY_FLAG=0x20, GB_CARRY_FLAG=0x10};
 
-	const uint8_t adjustment = 0x06 * hf + 0x60 * cf;
-	const int res = cpu.regs.a + (nf ? -adjustment : adjustment);
+	    cpu.regs.af &= ~(0xFF00 | GB_ZERO_FLAG);
 
-	cpu.regs.a += res;
+	    if (cpu.regs.af & GB_SUBTRACT_FLAG) {
+		if (cpu.regs.af & GB_HALF_CARRY_FLAG) {
+		    result = (result - 0x06) & 0xFF;
+		}
 
-	cpu.regs.f &= 0x5f; // nf is unchanged; hf is zero; zf is calc'd
-	cpu.regs.f |= (cpu.regs.a == 0) << 7; // what about cf???
-	cpu.regs.f |= (res > 0x99 || res < 0) << 4; // I think???
+		if (cpu.regs.af & GB_CARRY_FLAG) {
+		    result -= 0x60;
+		}
+	    }
+	    else {
+		if ((cpu.regs.af & GB_HALF_CARRY_FLAG) || (result & 0x0F) > 0x09) {
+		    result += 0x06;
+		}
+
+		if ((cpu.regs.af & GB_CARRY_FLAG) || result > 0x9F) {
+		    result += 0x60;
+		}
+	    }
+
+	    if ((result & 0xFF) == 0) {
+		cpu.regs.af |= GB_ZERO_FLAG;
+	    }
+
+	    if ((result & 0x100) == 0x100) {
+		cpu.regs.af |= GB_CARRY_FLAG;
+	    }
+
+	    cpu.regs.af &= ~GB_HALF_CARRY_FLAG;
+	    cpu.regs.af |= result << 8;
+	}
+
+	// cpu.regs.f |= (nf == 0 && cpu.regs.a >= 0x9a) << 4;
+	// cpu.regs.f |= (nf == 0 && cpu.regs.a % 16 > 10) << 5;
+
+	// const uint8_t adjustment = 0x06 * hf + 0x60 * cf;
+	// const int res = cpu.regs.a + (nf ? -adjustment : adjustment);
+
+	// cpu.regs.a += res;
+
+	// cpu.regs.f &= 0x5f; // nf is unchanged; hf is zero; zf is calc'd
+	// cpu.regs.f |= (cpu.regs.a == 0) << 7; // what about cf???
+	// cpu.regs.f |= (res > 0x99 || res < 0) << 4; // I think???
 
 	cpu.regs.pc++;
 	return 0;
@@ -650,10 +688,10 @@ void clean_cpu(struct SM83& cpu) {
     memset(&cpu.mem, 0x00, sizeof(cpu.mem));
     cpu.regs.pc = 0x0100;
     // stuff set up by the bootrom
-    cpu.regs.af = 0x1180;
-    cpu.regs.bc = 0x0000;
-    cpu.regs.de = 0xff56;
-    cpu.regs.hl = 0x000d;
+    cpu.regs.af = 0x01B0;
+    cpu.regs.bc = 0x0013;
+    cpu.regs.de = 0x00d8;
+    cpu.regs.hl = 0x014d;
     cpu.regs.sp = 0xfffe;
     // setup constant [rLY] = 144 = 0x90 - for tests
     cpu.mem[0xff44] = 0x90;
