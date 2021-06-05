@@ -276,9 +276,9 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 		    offset &= 0xffff;
 		} else { // when this wasnt a number
 		    // try to match a double reg
-		    for (const char* reg = *double_regs; reg!=NULL; reg++) {
-			if (strstr(format, reg)==format) {
-			    offset = cpu.regs.registers[reg-*double_regs];
+		    for (const char** reg = double_regs; reg!=NULL; reg++) {
+			if (strstr(format, *reg)==format) {
+			    offset = cpu.regs.registers[reg-double_regs];
 			    format+=2;
 			    goto finish_matching;
 			}
@@ -310,9 +310,9 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
 		chars+=10+20; // rough estimate- machine code is 10 bytes
 		goto next_char;
 	    }
-	    for (const char* reg = *double_regs; reg!=NULL; reg++) {
-		if (strstr(format, reg)==format) {
-		    printf("%04x", cpu.regs.registers[reg-*double_regs]);
+	    for (const char** reg = double_regs; reg!=NULL; reg++) {
+		if (strstr(format, *reg)==format) {
+		    printf("%04x", cpu.regs.registers[reg-double_regs]);
 		    format+=2;
 		    chars+=4;
 		    goto next_char;
