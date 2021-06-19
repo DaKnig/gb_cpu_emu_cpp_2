@@ -23,6 +23,102 @@ static inline void print_mem_at_addr(struct SM83& cpu, unsigned offset) {
     printf("\n%*c\n", 5+offset%16*3+1, '^');
 }
 
+static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
+    unsigned chars = 0;
+
+    const static char* double_regs[] { // double regs- stuff like %af or %pc
+	"af","bc","de","hl","sp","pc",NULL};
+    const char* regs[] { // 8bit regs- stuff like %a or %h
+	"a","f","b","c","d","e","h","l",NULL};
+
+    if (format==NULL)
+	return 0;
+    while (*format != '\0') {
+	if (*format == '%') { // special formatting
+	    format++;
+	    if (*format == '%') { // %%
+		putchar(*format++);
+		chars++;
+		goto next_char;
+	    }
+	    if (strstr(format, "mem(") == format) { // mem(reg|val)
+		//output the full line in memory
+		// partial matches would print something
+		format+=sizeof("mem(")-1;
+		char* endptr;
+		unsigned offset = strtoul(format, &endptr, 0); // match int
+		if (endptr != format) { // it was a number
+		    format = endptr;
+		    offset &= 0xffff;
+		} else { // when this wasnt a number
+		    // try to match a double reg
+		    for (const char** reg = double_regs; reg!=NULL; reg++) {
+			if (strstr(format, *reg)==format) {
+			    offset = cpu.regs.registers[reg-double_regs];
+			    format+=2;
+			    goto finish_matching;
+			}
+		    }
+		    // try to match c for (ff00+c) instructions
+		    if (format[0]=='c') {
+			offset = cpu.regs.c + 0xff00;
+			format++;
+		    }
+		}
+	    finish_matching:
+		if (format[0] != ')') { // to match mem(
+		    goto next_char;
+		}
+		format++;
+		print_mem_at_addr(cpu, offset);
+		goto next_char;
+	    }
+	    if (strstr(format, "[hl]") == format) { // %[hl]
+		printf("%02x",cpu.mem[cpu.regs.hl]);
+		format+=sizeof("[hl]")-1;
+		chars+=2;
+		goto next_char;
+	    }
+	    if (strstr(format, "disasm") == format) { // %disasm
+		disassemble_instruction(&cpu.mem[cpu.regs.pc]);
+                // print disassembly
+		format+=sizeof("disasm")-1;
+		chars+=10+20; // rough estimate- machine code is 10 bytes
+		goto next_char;
+	    }
+	    for (const char** reg = double_regs; reg!=NULL; reg++) {
+		if (strstr(format, *reg)==format) {
+		    printf("%04x", cpu.regs.registers[reg-double_regs]);
+		    format+=2;
+		    chars+=4;
+		    goto next_char;
+		}
+	    }
+	    for (const char* reg = *regs; reg!=NULL; reg++) {
+		if (strstr(format, reg)==format) {
+		    // gotta check top-reg [abdh] or bottom-reg [fcel]
+		    unsigned reg_num = reg-*regs;
+		    if (reg_num%2==0) //top-reg
+			printf("%02x", cpu.regs.registers[reg_num/2]>>8);
+		    else //bottom-reg
+			printf("%02x", cpu.regs.registers[reg_num/2]&0xff);
+		    format++;
+		    chars+=2;
+		    goto next_char;
+		}
+	    }
+
+	    putchar('%'); // if illegal formatting, print literally
+	    goto next_char;
+	} else { // regular chars
+	    putchar(*format++);
+	    chars++;
+	}
+    next_char:;
+    }
+    return chars;
+}
+
 static inline void print_mem(struct SM83& cpu, char* line, size_t argc) {
 
     if (argc == 1) {
@@ -75,9 +171,7 @@ static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
 	halt = run_single_command(cpu);
 	print_mem_at_addr(cpu, cpu.regs.pc);
 	if (times != 1) {
-	    printf("\033[93m%04x\033[0m ", cpu.regs.pc);
-	    disassemble_instruction(&cpu.mem[cpu.regs.pc]);
-	    puts("");
+	    pretty_printer(prompt, cpu);
 	}
     }
     if (copy.regs.pc == cpu.regs.pc) {
@@ -251,102 +345,6 @@ static inline int match_str(struct command commands[], const char* str) {
     return ret_val;
 }
 
-static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
-    unsigned chars = 0;
-
-    const static char* double_regs[] { // double regs- stuff like %af or %pc
-	"af","bc","de","hl","sp","pc",NULL};
-    const char* regs[] { // 8bit regs- stuff like %a or %h
-	"a","f","b","c","d","e","h","l",NULL};
-
-    if (format==NULL)
-	return 0;
-    while (*format != '\0') {
-	if (*format == '%') { // special formatting
-	    format++;
-	    if (*format == '%') { // %%
-		putchar(*format++);
-		chars++;
-		goto next_char;
-	    }
-	    if (strstr(format, "mem(") == format) { // mem(reg|val)
-		//output the full line in memory
-		// partial matches would print something
-		format+=sizeof("mem(")-1;
-		char* endptr;
-		unsigned offset = strtoul(format, &endptr, 0); // match int
-		if (endptr != format) { // it was a number
-		    format = endptr;
-		    offset &= 0xffff;
-		} else { // when this wasnt a number
-		    // try to match a double reg
-		    for (const char** reg = double_regs; reg!=NULL; reg++) {
-			if (strstr(format, *reg)==format) {
-			    offset = cpu.regs.registers[reg-double_regs];
-			    format+=2;
-			    goto finish_matching;
-			}
-		    }
-		    // try to match c for (ff00+c) instructions
-		    if (format[0]=='c') {
-			offset = cpu.regs.c + 0xff00;
-			format++;
-		    }
-		}
-	    finish_matching:
-		if (format[0] != ')') { // to match mem(
-		    goto next_char;
-		}
-		format++;
-		print_mem_at_addr(cpu, offset);
-		goto next_char;
-	    }
-	    if (strstr(format, "[hl]") == format) { // %[hl]
-		printf("%02x",cpu.mem[cpu.regs.hl]);
-		format+=sizeof("[hl]")-1;
-		chars+=2;
-		goto next_char;
-	    }
-	    if (strstr(format, "disasm") == format) { // %disasm
-		disassemble_instruction(&cpu.mem[cpu.regs.pc]);
-                // print disassembly
-		format+=sizeof("disasm")-1;
-		chars+=10+20; // rough estimate- machine code is 10 bytes
-		goto next_char;
-	    }
-	    for (const char** reg = double_regs; reg!=NULL; reg++) {
-		if (strstr(format, *reg)==format) {
-		    printf("%04x", cpu.regs.registers[reg-double_regs]);
-		    format+=2;
-		    chars+=4;
-		    goto next_char;
-		}
-	    }
-	    for (const char* reg = *regs; reg!=NULL; reg++) {
-		if (strstr(format, reg)==format) {
-		    // gotta check top-reg [abdh] or bottom-reg [fcel]
-		    unsigned reg_num = reg-*regs;
-		    if (reg_num%2==0) //top-reg
-			printf("%02x", cpu.regs.registers[reg_num/2]>>8);
-		    else //bottom-reg
-			printf("%02x", cpu.regs.registers[reg_num/2]&0xff);
-		    format++;
-		    chars+=2;
-		    goto next_char;
-		}
-	    }
-
-	    putchar('%'); // if illegal formatting, print literally
-	    goto next_char;
-	} else { // regular chars
-	    putchar(*format++);
-	    chars++;
-	}
-    next_char:;
-    }
-    return chars;
-}
-
 void run_debugger(struct SM83& cpu) {
     char* line = (char*) calloc(20,1); strcpy(line, "next 0"); // no-op
     char* old_line = (char*) calloc(20, 1);
@@ -380,9 +378,6 @@ void run_debugger(struct SM83& cpu) {
 	free(old_line);
 	old_line=strdup(line);
 	old_argc=argc;
-	// printf("\033[93m%04x\033[0m ", cpu.regs.pc); // print pc in yellow
-	// disassemble_instruction(&cpu.mem[cpu.regs.pc]); // print disassembly
-	// printf("\n > ");
 	pretty_printer(prompt, cpu);
 	getline(&line, &line_n, stdin);
 
