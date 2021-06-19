@@ -325,6 +325,9 @@ static inline void print_regs_cmd(struct SM83& cpu, char*, size_t) {
     print_regs(cpu);
 }
 
+static inline void ignore_comment(struct SM83&, char*, size_t) {
+}
+
 struct command {
     void (*fun) (struct SM83& cpu, char* line, size_t argc);
     const char* name;
@@ -346,7 +349,7 @@ static inline int match_str(struct command commands[], const char* str) {
 }
 
 void run_debugger(struct SM83& cpu) {
-    char* line = (char*) calloc(20,1); strcpy(line, "next 0"); // no-op
+    char* line = (char*) calloc(20,1); strcpy(line, "#"); // no-op
     char* old_line = (char*) calloc(20, 1);
     size_t line_n = 15;
     size_t argc = 2;
@@ -367,6 +370,7 @@ void run_debugger(struct SM83& cpu) {
 	{set_prompt, "set_prompt", "customize the prompt by using a format"
 	 "stirng"},
 	{get_prompt, "get_prompt", "print the format string for the prompt"},
+	{ignore_comment, "#", "comment; anything after the # is ignored"},
 	{NULL, NULL, NULL} // null delimited
     };
 
