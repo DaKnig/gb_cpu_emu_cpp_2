@@ -318,23 +318,23 @@ bool run_single_command(struct SM83& cpu) {
     XX(cpu.mem[cpu.regs.hl],6);			\
     XX(cpu.regs.a,7)
 
-#define ADD(REG, OFFSET)				\
-    case 0x80+OFFSET:					\
-	cpu.regs.f = (cpu.regs.a+REG > 0xff) << 4;	\
-	cpu.regs.f |= ((cpu.regs.a%16+REG%16)>16) << 5;	\
-	cpu.regs.f |= (cpu.regs.a + REG == 0) << 7;	\
-	cpu.regs.a += REG;				\
-	cpu.regs.pc++;					\
+#define ADD(REG, OFFSET)					\
+    case 0x80+OFFSET:						\
+	cpu.regs.f = (cpu.regs.a+REG > 0xff) << 4;		\
+	cpu.regs.f |= ((cpu.regs.a%16+REG%16)>=16)? 0x20: 0;	\
+	cpu.regs.f |= (cpu.regs.a + REG)%256 == 0? 0x80: 0;	\
+	cpu.regs.a += REG;					\
+	cpu.regs.pc++;						\
 	return 0
 
     XX_FOR_ALL_REGS(ADD);
-#define ADC(REG, OFFSET)					\
-    case 0x88+OFFSET:						\
-	cpu.regs.f = (cpu.regs.a + REG + cf > 0xff) << 4;	\
-	cpu.regs.f |= ((cpu.regs.a%16 + REG%16 + cf)>16) << 5;	\
-	cpu.regs.f |= (cpu.regs.a + REG + cf == 0) << 7;	\
-	cpu.regs.a += REG + cf;					\
-	cpu.regs.pc++;						\
+#define ADC(REG, OFFSET)						\
+    case 0x88+OFFSET:							\
+	cpu.regs.f = (cpu.regs.a + REG + cf > 0xff)? 0x10: 0;		\
+	cpu.regs.f |= ((cpu.regs.a%16 + REG%16 + cf)>=16)? 0x20: 0;	\
+	cpu.regs.f |= (cpu.regs.a + REG + cf)%256 == 0? 0x80: 0;	\
+	cpu.regs.a += REG + cf;						\
+	cpu.regs.pc++;							\
 	return 0
     XX_FOR_ALL_REGS(ADC);
 #define SUB(REG, OFFSET)				\
@@ -347,14 +347,14 @@ bool run_single_command(struct SM83& cpu) {
 	cpu.regs.pc++;					\
 	return 0
     XX_FOR_ALL_REGS(SUB);
-#define SBC(REG,OFFSET)					\
-    case 0x98+OFFSET:					\
-    	cpu.regs.f = (cpu.regs.a < REG+cf) << 4;	\
-	cpu.regs.f |= (cpu.regs.a%16 < REG%16+cf) << 5;	\
-	cpu.regs.f |= 1<<6;				\
-	cpu.regs.f |= (cpu.regs.a == REG+cf) << 7;	\
-	cpu.regs.a -= REG + cf;				\
-	cpu.regs.pc++;					\
+#define SBC(REG,OFFSET)							\
+    case 0x98+OFFSET:							\
+    	cpu.regs.f = (cpu.regs.a < REG+cf) << 4;			\
+	cpu.regs.f |= (cpu.regs.a%16 < REG%16+cf) << 5;			\
+	cpu.regs.f |= 1<<6;						\
+	cpu.regs.f |= (cpu.regs.a - REG - cf)%256 == 0? 0x80: 0;	\
+	cpu.regs.a -= REG + cf;						\
+	cpu.regs.pc++;							\
 	return 0
     XX_FOR_ALL_REGS(SBC);
 #define AND(REG,OFFSET)				\
