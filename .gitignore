@@ -4,4 +4,6 @@ objs/*
 cpu_instrs/source*
 .gitignore
 log.txt
-Gameboy-logs/*.zip
+Gameboy-logs/*
+*.html
+*.css

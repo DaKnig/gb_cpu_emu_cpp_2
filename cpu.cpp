@@ -655,7 +655,7 @@ static inline bool run_single_prefix_command(struct SM83& cpu) {
     case OPCODE:				\
 	REG |= 1<<BIT;				\
 	break
-    APPLY_BIT_OP(0xc0, APPLY_OPERATION_TO_ALL_REGS, RES);
+    APPLY_BIT_OP(0xc0, APPLY_OPERATION_TO_ALL_REGS, SET);
     }
     cpu.regs.pc += 2;
     return 0;

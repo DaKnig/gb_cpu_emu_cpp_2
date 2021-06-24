@@ -1,10 +1,16 @@
-CFLAGS=-Wall --std=gnu++17 -Werror -march=native -O3 \
-	-ggdb -Og
+CFLAGS=-Wall -std=gnu++17 -Werror -march=native -mtune=native
+#CFLAGS+=-ggdb -Og
+CFLAGS+=-O3
+#CFLAGS+=-O3 -flto
+CFLAGS+=-fprofile-arcs -pg
+#CFLAGS+=-fprofile-use
+#CFLAGS+=-fbranch-probabilities
+
 CC=g++
 OBJS=objs/cpu.o objs/debugger.o
 TESTS=bin/test_blargg
 
-all: bin/main
+all: bin/main tests
 
 .SECONDARY:
 
