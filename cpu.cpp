@@ -447,8 +447,9 @@ bool run_single_command(struct SM83& cpu) {
 #define COND_CALL(OPCODE, COND)					\
     case OPCODE:						\
 	if (COND) {						\
-	    cpu.mem[--cpu.regs.sp] = (cpu.regs.pc+3) >> 8;	\
-	    cpu.mem[--cpu.regs.sp] = (cpu.regs.pc+3);		\
+	    cpu.regs.pc+=3;					\
+	    cpu.mem[--cpu.regs.sp] = cpu.regs.pc >> 8;	\
+	    cpu.mem[--cpu.regs.sp] = cpu.regs.pc;		\
 	    cpu.regs.pc = imm16;				\
 	} else							\
 	    cpu.regs.pc += 3;					\
@@ -505,9 +506,12 @@ bool run_single_command(struct SM83& cpu) {
 	cpu.regs.pc+=2;
 	return 0;
     }
-#define RST(VECTOR)				\
-    case 0xc7+VECTOR:			        \
-	cpu.regs.pc = VECTOR;			\
+#define RST(VECTOR)						\
+    case 0xc7+VECTOR:					        \
+	cpu.regs.pc++;						\
+	cpu.mem[--cpu.regs.sp] = cpu.regs.pc >> 8;		\
+	cpu.mem[--cpu.regs.sp] = cpu.regs.pc;			\
+	cpu.regs.pc = VECTOR;					\
 	return 0
     RST(0x00); RST(0x08);
     RST(0x10); RST(0x18);
