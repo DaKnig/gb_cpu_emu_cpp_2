@@ -7,21 +7,24 @@ game-boy. this is not a full gb emulator- it does not, and would not, emulate
 peripherals such as screen, mmio, the cartridge - only the cpu as if it was
 connected to a bus with 64kiB of RAM.
 
-the emulator should be able to load code from files, run single instruction,
-run in a debugger and maybe other things too, later.
+the emulator can load code from files, run single instruction, run a custom
+debugger and maybe other things too, later.
 
 ** level of completeness
 
-right now this is incomplete - can't even pass the relevant blargg's tests.
-currently, DAA does not work.
-to run one of his test roms, load it and run it until an infinite loop is
-detected. then check memory at $9800 (BG) which should contain the ASCII output.
+passes the blargg cpu_instrs individual tests- but not the big 64kB test rom as
+that would require emulating MBC, which is outside of the scope of this project.
+*doesn't* pass the interrupt test as interrupts are out of scope.
 
-maybe add a simple debugger command to print the background as ascii text? must
-take care of the scroll registers too.
+a test binary would be generated under bin/test_blargg which would report if the
+tests pass and show the bg layer if they fail. this is enough for debugging and
+quite fast.
 
-before completion, this should have some tests to compare to more accurate
-and well known emulators, like SameBoy or BGB. low priority at the moment.
+a full debugger exists, with customizable prompt and colorful text. to see the
+documentation of the debugger instructions, type `help` in the debugger prompt.
+main features include: custom prompt with a printf-like format string, 
+breakpoints, disassembling a single instruction at any point in memory.
+
 
 ** compilation
 

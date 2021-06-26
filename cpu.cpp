@@ -446,13 +446,12 @@ bool run_single_command(struct SM83& cpu) {
 	return 0;
 #define COND_CALL(OPCODE, COND)					\
     case OPCODE:						\
+	cpu.regs.pc+=3;						\
 	if (COND) {						\
-	    cpu.regs.pc+=3;					\
-	    cpu.mem[--cpu.regs.sp] = cpu.regs.pc >> 8;	\
+	    cpu.mem[--cpu.regs.sp] = cpu.regs.pc >> 8;		\
 	    cpu.mem[--cpu.regs.sp] = cpu.regs.pc;		\
 	    cpu.regs.pc = imm16;				\
-	} else							\
-	    cpu.regs.pc += 3;					\
+	}							\
 	return 0
     COND_CALL(0xc4, !zf);
     COND_CALL(0xd4, !cf);
