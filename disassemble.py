@@ -46,7 +46,7 @@ def main(argv):
             elif 'a8' == operand['name']:
                 ret_val += 1
                 s = "$ff00+$%02x"%imm8
-            elif '8' in operand['name']:
+            elif '8' in operand['name'] and len(operand['name']) == 2:
                 ret_val += 1
                 s = "$%02x"%imm8
             elif '16' in operand['name']:
