@@ -6,32 +6,25 @@ CFLAGS+=-fprofile-arcs -pg
 #CFLAGS+=-fprofile-use
 #CFLAGS+=-fbranch-probabilities
 
-CC=g++
-OBJS=objs/cpu.o objs/debugger.o
-TESTS=bin/test_blargg
+CC:=c++
+OBJS:=objs/core/cpu.o objs/debugger/debugger.o
+INCLUDES:=core/
+TESTS:=bin/test/test_blargg
 
-all: bin/main tests
+all: bin/debugger/debugger_main $(TESTS)
 
 .SECONDARY:
 
-tests: $(TESTS)
-
-bin/%: $(OBJS) objs/%.o | bin
+bin/%: objs/%.o $(OBJS) | bin/debugger/ bin/test/
 	$(CC) $(CFLAGS) -o $@ $^
 
-objs/%.o: %.cpp Makefile | objs
-	$(CC) $(CFLAGS) -c -o $@ $<
+objs/%.o: %.cpp Makefile | objs/core/ objs/debugger/ objs/test/
+	$(CC) $(CFLAGS) -I$(INCLUDES) -c -o $@ $<
 
-objs/%.o: test/%.cpp Makefile | objs
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-objs:
-	mkdir $@
-
-bin:
-	mkdir $@
+%/:
+	mkdir -p $@
 
 .PHONY: clean
 clean:
-	rm -rf objs/* bin/*
+	rm -rf objs bin
 	rm -if *~ */*~
