@@ -712,5 +712,4 @@ void clean_cpu(struct SM83& cpu) {
     cpu.mem[0xff44] = 0x90;
     // start non halted and without breakpoints
     cpu.misc.halt = false;
-    cpu.misc.breakpoints.clear();
 }

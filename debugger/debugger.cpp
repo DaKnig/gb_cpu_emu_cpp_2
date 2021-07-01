@@ -11,6 +11,11 @@ using std::find;
 
 static char* prompt=NULL;
 
+struct debugger_state {
+    SM83 cpu;
+    vector<uint16_t> breakpoints;
+};
+
 static inline void print_mem_at_addr(struct SM83& cpu, unsigned offset) {
     printf("%04x ", offset&0xfff0);
 
@@ -119,7 +124,8 @@ static inline unsigned pretty_printer(const char* format, struct SM83& cpu) {
     return chars;
 }
 
-static inline void print_mem(struct SM83& cpu, char* line, size_t argc) {
+static inline void print_mem(struct debugger_state& debug_state,
+			     char* line, size_t argc) {
 
     if (argc == 1) {
 	printf("usage: mem addr\n");
@@ -128,7 +134,7 @@ static inline void print_mem(struct SM83& cpu, char* line, size_t argc) {
     const char* second_arg = line+strlen(line)+1;
     uint16_t offset = strtoul(second_arg, NULL, 16);// the 2nd arg
 
-    print_mem_at_addr(cpu, offset);
+    print_mem_at_addr(debug_state.cpu, offset);
 }
 
 static inline size_t sep_args(char* line) { ////### UNSAFE, REWRITE THIS!
@@ -141,7 +147,9 @@ static inline size_t sep_args(char* line) { ////### UNSAFE, REWRITE THIS!
     return argc;
 }
 
-static inline void draw_screen(struct SM83& cpu, char*, size_t) {
+static inline void draw_screen(struct debugger_state& debug_state,
+			       char*, size_t) {
+    struct SM83& cpu = debug_state.cpu;
     const uint8_t SCX_C = cpu.mem[0xff43]/8;
     const uint8_t SCY_C = cpu.mem[0xff42]/8;
     const uint16_t BG_MAP = 0x9800;
@@ -156,7 +164,9 @@ static inline void draw_screen(struct SM83& cpu, char*, size_t) {
     puts("\n   01234567890123456789");
 }
 
-static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
+static inline void next_instruction(struct debugger_state& debug_state,
+				    char* line, size_t argc) {
+    struct SM83& cpu = debug_state.cpu;
     int times = 1;
     if (argc > 1) {
 	times = atoi(1+strchr(line, '\0'));
@@ -180,7 +190,9 @@ static inline void next_instruction(struct SM83& cpu, char* line, size_t argc) {
     cpu.misc.halt = halt;
 }
 
-static inline void quiet_next(SM83& cpu, char* line, size_t argc) {
+static inline void quiet_next(struct debugger_state& debug_state,
+			      char* line, size_t argc) {
+    struct SM83& cpu = debug_state.cpu;
     int times = 1;
     if (argc > 1)
 	times = atoi(1+strchr(line, '\0'));
@@ -196,14 +208,16 @@ static inline void quiet_next(SM83& cpu, char* line, size_t argc) {
     cpu.misc.halt = halt;
 }
 
-static inline void exit_debugger(SM83&, char* line, size_t argc) {
+static inline void exit_debugger(struct debugger_state&,
+				 char* line, size_t argc) {
     int status = 0;
     if (argc > 1)
 	status = atoi(1+strchr(line, '\0'));
     exit(status);
 }
 
-void run_log(struct SM83& cpu, char* line, size_t argc) {
+void run_log(struct debugger_state& debug_state, char* line, size_t argc) {
+    struct SM83& cpu = debug_state.cpu;
     bool halt;
     FILE* log_file=fopen(argc>1? strchr(line,'\0')+1: "/tmp/log.txt", "wx");
     if (!log_file) {
@@ -231,9 +245,9 @@ void run_log(struct SM83& cpu, char* line, size_t argc) {
 	halt = run_single_command(cpu);
     } while(!halt && prev_pc != cpu.regs.pc &&
 	    find(
-		cpu.misc.breakpoints.begin(),
-		cpu.misc.breakpoints.end(), cpu.regs.pc) ==
-	    cpu.misc.breakpoints.end());
+		debug_state.breakpoints.begin(),
+		debug_state.breakpoints.end(),
+		cpu.regs.pc) == debug_state.breakpoints.end());
     if (prev_pc == cpu.regs.pc) {
 	printf("detected infinite loop at %04x\n", cpu.regs.pc);
     }
@@ -241,7 +255,9 @@ void run_log(struct SM83& cpu, char* line, size_t argc) {
     cpu.misc.halt = halt;
 }
 
-static inline void continue_exec(struct SM83& cpu, char* line, size_t argc) {
+static inline void continue_exec(struct debugger_state& debug_state,
+				 char* line, size_t argc) {
+    struct SM83& cpu = debug_state.cpu;
     (void) argc;
     (void) line;
     uint16_t prev_pc = cpu.regs.pc+1;
@@ -252,9 +268,9 @@ static inline void continue_exec(struct SM83& cpu, char* line, size_t argc) {
 	prev_pc = cpu.regs.pc;
 	cpu.misc.halt = run_single_command(cpu);
 	hit_breakpoint = find(
-	    cpu.misc.breakpoints.begin(),
-	    cpu.misc.breakpoints.end(), cpu.regs.pc) !=
-	    cpu.misc.breakpoints.end();
+	    debug_state.breakpoints.begin(),
+	    debug_state.breakpoints.end(), cpu.regs.pc) !=
+	    debug_state.breakpoints.end();
 
     }
     if (prev_pc == cpu.regs.pc) {
@@ -262,7 +278,9 @@ static inline void continue_exec(struct SM83& cpu, char* line, size_t argc) {
     }
 }
 
-static inline void disasm(struct SM83& cpu, char* line, size_t argc) {
+static inline void disasm(struct debugger_state& debug_state,
+			  char* line, size_t argc) {
+    struct SM83& cpu = debug_state.cpu;
     char* second_arg = line+strlen(line)+1;
     uint16_t addr;
     if (argc == 1)
@@ -273,7 +291,8 @@ static inline void disasm(struct SM83& cpu, char* line, size_t argc) {
     puts("");
 }
 
-static inline void set_prompt(struct SM83&, char* line, size_t argc) {
+static inline void set_prompt(struct debugger_state&,
+			      char* line, size_t argc) {
 
     char* second_arg = line+strlen(line)+1;
     if (argc==1 || strcmp(second_arg,"--help")==0) { //print help
@@ -308,7 +327,7 @@ static inline void set_prompt(struct SM83&, char* line, size_t argc) {
     }
 }
 
-static inline void get_prompt(struct SM83&, char*, size_t) {
+static inline void get_prompt(struct debugger_state&, char*, size_t) {
     putchar('`');
     for (const char* l=prompt; *l; l++) {
 	if (*l=='\n')
@@ -321,15 +340,16 @@ static inline void get_prompt(struct SM83&, char*, size_t) {
     puts("`");
 }
 
-static inline void print_regs_cmd(struct SM83& cpu, char*, size_t) {
-    print_regs(cpu);
+static inline void print_regs_cmd(struct debugger_state& debug_state,
+				  char*, size_t) {
+    print_regs(debug_state.cpu);
 }
 
-static inline void ignore_comment(struct SM83&, char*, size_t) {
+static inline void ignore_comment(struct debugger_state&, char*, size_t) {
 }
 
 struct command {
-    void (*fun) (struct SM83& cpu, char* line, size_t argc);
+    void (*fun) (struct debugger_state& cpu, char* line, size_t argc);
     const char* name;
     const char* help;
 };
@@ -349,6 +369,7 @@ static inline int match_str(struct command commands[], const char* str) {
 }
 
 void run_debugger(struct SM83& cpu) {
+    struct debugger_state debug_state = {cpu, {}};
     char* line = (char*) calloc(20,1); strcpy(line, "#"); // no-op
     char* old_line = (char*) calloc(20, 1);
     size_t line_n = 15;
@@ -377,12 +398,12 @@ void run_debugger(struct SM83& cpu) {
     prompt = strdup("\033[93m%pc\033[0m %disasm\n > ");
 
     puts("starting debugger");
-    print_regs(cpu);
+    print_regs(debug_state.cpu);
     do {
 	free(old_line);
 	old_line=strdup(line);
 	old_argc=argc;
-	pretty_printer(prompt, cpu);
+	pretty_printer(prompt, debug_state.cpu);
 	getline(&line, &line_n, stdin);
 
 	if (line[0] == '\n') {
@@ -394,7 +415,7 @@ void run_debugger(struct SM83& cpu) {
 
 	int matching_index = match_str(commands, line);
 	if (matching_index != -1) {
-	    commands[matching_index].fun(cpu, line, argc);
+	    commands[matching_index].fun(debug_state, line, argc);
 	} else if (strstr("help", line)) {
 	    if (argc == 1) {
 		printf("list of commands:\n");
@@ -415,8 +436,8 @@ void run_debugger(struct SM83& cpu) {
 	    }
 	} else if (strcmp(line, "breakpoints") == 0) {
 	    printf("breakpoints:\n");
-	    for (size_t i=0; i<cpu.misc.breakpoints.size(); i++)
-		printf("%3zd %04x\n", i, cpu.misc.breakpoints[i]);
+	    for (size_t i=0; i<debug_state.breakpoints.size(); i++)
+		printf("%3zd %04x\n", i, debug_state.breakpoints[i]);
 	} else if (strcmp(line, "break") == 0 ||
 		   strcmp(line, "b") == 0) {
 	    if (argc == 1) {
@@ -424,7 +445,7 @@ void run_debugger(struct SM83& cpu) {
 		continue;
 	    }
 	    uint16_t bp = strtoul(line+strlen(line)+1, NULL, 16);
-	    cpu.misc.breakpoints.push_back(bp);
+	    debug_state.breakpoints.push_back(bp);
 	} else if (strcmp(line, "rembreak") == 0 ||
 		   strcmp(line, "rb") == 0) {
 	    if (argc == 1) {
@@ -432,8 +453,9 @@ void run_debugger(struct SM83& cpu) {
 		continue;
 	    }
 	    size_t i = strtoul(line+strlen(line)+1, NULL, 16);
-	    if (i < cpu.misc.breakpoints.size())
-		cpu.misc.breakpoints.erase(cpu.misc.breakpoints.begin()+i);
+	    if (i < debug_state.breakpoints.size())
+		debug_state.breakpoints.erase(
+		    debug_state.breakpoints.begin()+i);
 	} else {
 	    printf("unrecognized command `%s`\n", line);
 	}

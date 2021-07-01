@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <vector>
 // copied from SameBoy
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define GB_BIG_ENDIAN
@@ -48,7 +47,6 @@ struct SM83 {
     uint8_t mem[1<<16]; // assume the whole memory map is RAM for simplicity
     struct misc_state {
 	bool halt;
-	std::vector<uint16_t> breakpoints;
     } misc;
 };
 
