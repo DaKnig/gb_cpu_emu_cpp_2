@@ -9,11 +9,10 @@ using std::vector;
 #include <algorithm>
 using std::find;
 
-static char* prompt=NULL;
-
 struct debugger_state {
     SM83 cpu;
     vector<uint16_t> breakpoints;
+    char* prompt=NULL;
 };
 
 static inline void print_mem_at_addr(struct SM83& cpu, unsigned offset) {
@@ -181,7 +180,7 @@ static inline void next_instruction(struct debugger_state& debug_state,
 	halt = run_single_command(cpu);
 	print_mem_at_addr(cpu, cpu.regs.pc);
 	if (times != 1) {
-	    pretty_printer(prompt, cpu);
+	    pretty_printer(debug_state.prompt, cpu);
 	}
     }
     if (copy.regs.pc == cpu.regs.pc) {
@@ -291,7 +290,7 @@ static inline void disasm(struct debugger_state& debug_state,
     puts("");
 }
 
-static inline void set_prompt(struct debugger_state&,
+static inline void set_prompt(struct debugger_state& debug_state,
 			      char* line, size_t argc) {
 
     char* second_arg = line+strlen(line)+1;
@@ -312,14 +311,14 @@ static inline void set_prompt(struct debugger_state&,
 #ifdef DEBUG
     fprintf(stderr, "line_tail = %s\n", line_tail);
 #endif
-    free(prompt);
+    free(debug_state.prompt);
     for (const char* l=line_tail; *l; l++)
 	argc -= *l == ' ';
     for (; argc>2; argc--) {
 	*strchr(line_tail,'\0') = ' ';
     }
-    prompt=strdup(line_tail);
-    for (char* l=prompt; *l; l++) {
+    debug_state.prompt=strdup(line_tail);
+    for (char* l=debug_state.prompt; *l; l++) {
 	if (strstr(l, "\\n")==l) {
 	    l[0] = ' ';
 	    l[1] = '\n';
@@ -327,9 +326,10 @@ static inline void set_prompt(struct debugger_state&,
     }
 }
 
-static inline void get_prompt(struct debugger_state&, char*, size_t) {
+static inline void get_prompt(struct debugger_state& debug_state,
+			      char*, size_t) {
     putchar('`');
-    for (const char* l=prompt; *l; l++) {
+    for (const char* l=debug_state.prompt; *l; l++) {
 	if (*l=='\n')
 	    printf("\\n");
 	else if (*l=='\t')
@@ -389,13 +389,13 @@ void run_debugger(struct SM83& cpu) {
 	{exit_debugger, "exit", "call exit() with specified value, defaults"
 	 "to 0"},
 	{set_prompt, "set_prompt", "customize the prompt by using a format"
-	 "stirng"},
+	 "stirng; `set_prompt --help` for more information"},
 	{get_prompt, "get_prompt", "print the format string for the prompt"},
 	{ignore_comment, "#", "comment; anything after the # is ignored"},
 	{NULL, NULL, NULL} // null delimited
     };
 
-    prompt = strdup("\033[93m%pc\033[0m %disasm\n > ");
+    debug_state.prompt = strdup("\033[93m%pc\033[0m %disasm\n > ");
 
     puts("starting debugger");
     print_regs(debug_state.cpu);
@@ -403,7 +403,7 @@ void run_debugger(struct SM83& cpu) {
 	free(old_line);
 	old_line=strdup(line);
 	old_argc=argc;
-	pretty_printer(prompt, debug_state.cpu);
+	pretty_printer(debug_state.prompt, debug_state.cpu);
 	getline(&line, &line_n, stdin);
 
 	if (line[0] == '\n') {
