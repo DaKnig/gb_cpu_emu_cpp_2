@@ -699,17 +699,17 @@ void load_rom(struct SM83& cpu, const char* filename) {
     fclose(f);
 }
 
-void clean_cpu(struct SM83& cpu) {
-    memset(&cpu.mem, 0x00, sizeof(cpu.mem));
-    cpu.regs.pc = 0x0100;
+void clean_cpu(struct SM83* cpu) {
+    memset(&cpu->mem, 0x00, sizeof(cpu->mem));
+    cpu->regs.pc = 0x0100;
     // stuff set up by the bootrom
-    cpu.regs.af = 0x01B0;
-    cpu.regs.bc = 0x0013;
-    cpu.regs.de = 0x00d8;
-    cpu.regs.hl = 0x014d;
-    cpu.regs.sp = 0xfffe;
+    cpu->regs.af = 0x01B0;
+    cpu->regs.bc = 0x0013;
+    cpu->regs.de = 0x00d8;
+    cpu->regs.hl = 0x014d;
+    cpu->regs.sp = 0xfffe;
     // setup constant [rLY] = 144 = 0x90 - for tests
-    cpu.mem[0xff44] = 0x90;
+    cpu->mem[0xff44] = 0x90;
     // start non halted and without breakpoints
-    cpu.misc.halt = false;
+    cpu->misc.halt = false;
 }
