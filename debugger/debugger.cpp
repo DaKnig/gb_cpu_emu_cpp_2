@@ -342,7 +342,7 @@ static inline void get_prompt(struct debugger_state& debug_state,
 
 static inline void print_regs_cmd(struct debugger_state& debug_state,
 				  char*, size_t) {
-    print_regs(debug_state.cpu);
+    print_regs(&debug_state.cpu);
 }
 
 static inline void ignore_comment(struct debugger_state&, char*, size_t) {
@@ -398,7 +398,7 @@ void run_debugger(struct SM83& cpu) {
     debug_state.prompt = strdup("\033[93m%pc\033[0m %disasm\n > ");
 
     puts("starting debugger");
-    print_regs(debug_state.cpu);
+    print_regs(&debug_state.cpu);
     do {
 	free(old_line);
 	old_line=strdup(line);

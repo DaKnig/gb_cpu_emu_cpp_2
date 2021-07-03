@@ -673,16 +673,16 @@ void run_cpu(struct SM83& cpu) {
     } while (!halting && prev_pc != cpu.regs.pc) ;
 }
 
-void print_regs(const struct SM83 cpu) {
+void print_regs(const struct SM83* cpu) {
     printf("af: %04x\nbc: %04x\nde: %04x\nhl: %04x\nsp: %04x\npc: %04x\n"
 	   "z: %x, n: %x, h: %x, c: %x\n",
-	   cpu.regs.af,
-	   cpu.regs.bc,
-	   cpu.regs.de,
-	   cpu.regs.hl,
-	   cpu.regs.sp,
-	   cpu.regs.pc,
-	   cpu.regs.zf, cpu.regs.nf, cpu.regs.hf, cpu.regs.cf);
+	   cpu->regs.af,
+	   cpu->regs.bc,
+	   cpu->regs.de,
+	   cpu->regs.hl,
+	   cpu->regs.sp,
+	   cpu->regs.pc,
+	   cpu->regs.zf, cpu->regs.nf, cpu->regs.hf, cpu->regs.cf);
 }
 
 void load_rom(struct SM83* cpu, const char* filename) {

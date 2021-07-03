@@ -58,7 +58,7 @@ bool run_single_command(struct SM83& cpu) ;
 // runs until a loop is detected
 void run_cpu(struct SM83& cpu);
 
-void print_regs(const struct SM83 cpu);
+void print_regs(const struct SM83* cpu);
 
 // loads rom from a file
 void load_rom(struct SM83* cpu, const char* filename);
