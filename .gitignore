@@ -7,3 +7,5 @@ log.txt
 Gameboy-logs/*
 *.html
 *.css
+perf*
+gmon*
