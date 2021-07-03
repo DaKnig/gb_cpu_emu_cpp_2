@@ -664,13 +664,13 @@ static inline bool run_single_prefix_command(struct SM83& cpu) {
     return 0;
 }
 
-void run_cpu(struct SM83& cpu) {
+void run_cpu(struct SM83* cpu) {
     bool halting;
     uint16_t prev_pc;
     do {
-	prev_pc = cpu.regs.pc;
-	halting = run_single_command(cpu);
-    } while (!halting && prev_pc != cpu.regs.pc) ;
+	prev_pc = cpu->regs.pc;
+	halting = run_single_command(*cpu);
+    } while (!halting && prev_pc != cpu->regs.pc) ;
 }
 
 void print_regs(const struct SM83* cpu) {

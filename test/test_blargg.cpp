@@ -45,7 +45,7 @@ int main(int, char*[]) {
 	clean_cpu(&cpu);
 	load_rom(&cpu, test_rom_names[i]);
 
-	run_cpu(cpu);
+	run_cpu(&cpu);
 
 	char screen[20][30] = {{0}};
 	draw_screen(cpu, screen);
