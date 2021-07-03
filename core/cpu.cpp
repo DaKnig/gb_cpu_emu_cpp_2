@@ -685,7 +685,7 @@ void print_regs(const struct SM83 cpu) {
 	   cpu.regs.zf, cpu.regs.nf, cpu.regs.hf, cpu.regs.cf);
 }
 
-void load_rom(struct SM83& cpu, const char* filename) {
+void load_rom(struct SM83* cpu, const char* filename) {
     FILE* f = fopen(filename, "r");
     if (!f) {
 	fprintf(stderr, "can't open file `%s`\n", filename);
@@ -693,7 +693,7 @@ void load_rom(struct SM83& cpu, const char* filename) {
 	return;
     }
 
-    size_t bytes_read = fread(cpu.mem, 1, sizeof(cpu.mem), f);
+    size_t bytes_read = fread(cpu->mem, 1, sizeof(cpu->mem), f);
     printf("read %zd bytes\n", bytes_read);
 
     fclose(f);

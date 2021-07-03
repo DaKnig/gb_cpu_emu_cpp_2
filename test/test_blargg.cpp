@@ -43,7 +43,7 @@ int main(int, char*[]) {
     // loop over test_rom_names, display which did not display "Passed"
     for (unsigned i=0; i<ELEM(test_rom_names); i++) {
 	clean_cpu(&cpu);
-	load_rom(cpu, test_rom_names[i]);
+	load_rom(&cpu, test_rom_names[i]);
 
 	run_cpu(cpu);
 

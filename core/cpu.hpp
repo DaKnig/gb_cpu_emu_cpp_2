@@ -61,7 +61,7 @@ void run_cpu(struct SM83& cpu);
 void print_regs(const struct SM83 cpu);
 
 // loads rom from a file
-void load_rom(struct SM83& cpu, const char* filename);
+void load_rom(struct SM83* cpu, const char* filename);
 
 // resets the cpu block - all zeros, pc points to 0x100
 void clean_cpu(struct SM83* cpu);
