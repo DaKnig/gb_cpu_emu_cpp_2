@@ -177,7 +177,7 @@ static inline void next_instruction(struct debugger_state& debug_state,
     bool halt = cpu.misc.halt;
     for (; times > 0; times--) {
 	copy = cpu;
-	halt = run_single_command(cpu);
+	halt = run_single_command(&cpu);
 	print_mem_at_addr(cpu, cpu.regs.pc);
 	if (times != 1) {
 	    pretty_printer(debug_state.prompt, cpu);
@@ -199,7 +199,7 @@ static inline void quiet_next(struct debugger_state& debug_state,
     bool halt = cpu.misc.halt;
     for (; times > 0; times--) {
 	copy = cpu;
-	halt = run_single_command(cpu);
+	halt = run_single_command(&cpu);
     }
     if (copy.regs.pc == cpu.regs.pc) {
 	printf("detected infinite loop at %04x\n", cpu.regs.pc);
@@ -241,7 +241,7 @@ void run_log(struct debugger_state& debug_state, char* line, size_t argc) {
 	    fprintf(log_file, "%02X ", cpu.mem[cpu.regs.pc+i]);
 	fprintf(log_file, "%02X)\n", cpu.mem[cpu.regs.pc+3]);
 
-	halt = run_single_command(cpu);
+	halt = run_single_command(&cpu);
     } while(!halt && prev_pc != cpu.regs.pc &&
 	    find(
 		debug_state.breakpoints.begin(),
@@ -265,7 +265,7 @@ static inline void continue_exec(struct debugger_state& debug_state,
     bool hit_breakpoint = false;
     while(!cpu.misc.halt && prev_pc != cpu.regs.pc && !hit_breakpoint) {
 	prev_pc = cpu.regs.pc;
-	cpu.misc.halt = run_single_command(cpu);
+	cpu.misc.halt = run_single_command(&cpu);
 	hit_breakpoint = find(
 	    debug_state.breakpoints.begin(),
 	    debug_state.breakpoints.end(), cpu.regs.pc) !=

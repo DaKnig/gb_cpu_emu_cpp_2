@@ -53,7 +53,7 @@ struct SM83 {
 
 // runs a single command from mem[pc]
 // returns halting condition - true when halting, false otherwise
-bool run_single_command(struct SM83& cpu) ;
+bool run_single_command(struct SM83* cpu) ;
 
 // runs until a loop is detected
 void run_cpu(struct SM83* cpu);
