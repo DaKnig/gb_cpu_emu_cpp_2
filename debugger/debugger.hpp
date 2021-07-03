@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cpu.hpp"
+#include "cpu.h"
 #include <stddef.h>
 
 void run_debugger(struct SM83& cpu);

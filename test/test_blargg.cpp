@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "cpu.hpp"
+#include "cpu.h"
 #include <ctype.h>
 
 #define ELEM(X) (sizeof(X) / sizeof(X[0]))

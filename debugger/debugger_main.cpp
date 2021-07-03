@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "cpu.hpp"
+#include "cpu.h"
 #include "debugger.hpp"
 
 int main(int argc, char* argv[]) {

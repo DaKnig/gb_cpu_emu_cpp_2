@@ -4,6 +4,10 @@
   this is a declaration of the CPU emulator for the game boy
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 // copied from SameBoy
@@ -65,3 +69,7 @@ void load_rom(struct SM83* cpu, const char* filename);
 
 // resets the cpu block - all zeros, pc points to 0x100
 void clean_cpu(struct SM83* cpu);
+
+#ifdef __cplusplus
+}
+#endif

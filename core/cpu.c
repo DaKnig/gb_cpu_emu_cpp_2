@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include "cpu.hpp"
+#include "cpu.h"
 
 //#define DEBUG
 
@@ -569,7 +569,7 @@ bool run_single_command(struct SM83* cpu) {
 static inline bool run_single_prefix_command(struct SM83* cpu) {
     uint8_t* instr = &cpu->mem[cpu->regs.pc];
     assert(instr[0] == 0xcb);
-    uint8_t& hl_ = cpu->mem[cpu->regs.hl];
+    uint8_t* hl_ = &cpu->mem[cpu->regs.hl];
     switch (instr[1]) {
 #define APPLY_XX_TO_ALL_REGS(OFFSET,XX,F,VAL)	\
     XX(OFFSET+0, cpu->regs.b,F,VAL);		\
@@ -578,7 +578,7 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
     XX(OFFSET+3, cpu->regs.e,F,VAL);		\
     XX(OFFSET+4, cpu->regs.h,F,VAL);		\
     XX(OFFSET+5, cpu->regs.l,F,VAL);		\
-    XX(OFFSET+6,        hl_,F,VAL);		\
+    XX(OFFSET+6,      (*hl_),F,VAL);		\
     XX(OFFSET+7, cpu->regs.a,F,VAL)
 #define XX(OPCODE,REG,F,VAL)				    \
 	/*F is a macro that creates F, without zf*/	    \
@@ -638,7 +638,7 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
     OPERATION(OFFSET+3, BIT, cpu->regs.e);			\
     OPERATION(OFFSET+4, BIT, cpu->regs.h);			\
     OPERATION(OFFSET+5, BIT, cpu->regs.l);			\
-    OPERATION(OFFSET+6, BIT,       hl_);			\
+    OPERATION(OFFSET+6, BIT,     (*hl_));			\
     OPERATION(OFFSET+7, BIT, cpu->regs.a)
 
 #define BIT(OPCODE,BIT,REG)			\
