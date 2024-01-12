@@ -2,7 +2,7 @@ CFLAGS=-Wall -Werror -march=native -mtune=native
 #CFLAGS+=-ggdb -Og
 CFLAGS+=-Oz
 #CFLAGS+=-O3 -flto
-CFLAGS+=-fprofile-arcs -pg
+#CFLAGS+=-fprofile-arcs -pg
 #CFLAGS+=-fprofile-use
 #CFLAGS+=-fbranch-probabilities
 CSTD=-std=gnu2x
