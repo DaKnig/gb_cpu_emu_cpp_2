@@ -594,10 +594,10 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 	case 5: reg = &cpu->regs.l; break;
 	case 6: reg = &     (*hl_); break;
 	case 7: reg = &cpu->regs.a; break;
+	default: __builtin_unreachable();
 	}
 
 	int block = instr[1] >> 6;
-	(void) block;
 	if (block) {
 		int bit = 1 << n;
 		if (block == 3) {        // SET instructions
@@ -609,77 +609,44 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 			cpu->regs.f|= 0x20|((*reg & bit)?0:0x80);
 		}
 	} else {         // one of the 8 "tiny instructions"
-		(void) n;
 		int opc = n; // more meaningful name in this case
 		uint8_t bit7_cf = *reg & 0x80 ? 0x10 : 0;
 		uint8_t bit0_cf = *reg & 1 ? 0x10 : 0;
 		uint8_t old_f = cpu->regs.f;
-		(void) old_f;
 		switch(opc) {
 		case 0: // rlc
 			*reg = (*reg << 1) | (*reg >> 7);
 			break;
 		case 1: // rrc
 			*reg = (*reg >> 1) | (*reg << 7);
+			break;
+		case 2: // rl
+			*reg = (*reg << 1) | (old_f & 0x10? 1 : 0);
+			break;
+		case 3: // rr
+			*reg = (*reg >> 1) | (old_f & 0x10? 0x80 : 0);
+			break;
+		case 4: // sla
+			*reg = *reg << 1;
+			break;
+		case 5: // sra
+			*reg = (*reg >> 1) | (*reg & 0x80);
+			break;
+		case 6: // swap
+			*reg = (*reg >> 4) | (*reg << 4);
+			break;
+		case 7: // srl
+			*reg = *reg >> 1;
+			break;
 		}
-		if (opc <= 1) { /* TODO: REMOVE */
-			if (opc == 0 || opc == 2 || opc == 4) // rlc rl sla
-				cpu->regs.f = bit7_cf;
-			/* else if (opc == 6) // swap */
-			/*  cpu->regs.f = 0; */
-			else // rrc rr sra srl
-				cpu->regs.f = bit0_cf;
-			cpu->regs.f |= *reg == 0? 0x80: 0x00;
-		}
+		if (opc == 0 || opc == 2 || opc == 4) // rlc rl sla
+			cpu->regs.f = bit7_cf;
+		else if (opc == 6) // swap
+			cpu->regs.f = 0;
+		else // rrc rr sra srl
+			cpu->regs.f = bit0_cf;
+		cpu->regs.f |= *reg == 0? 0x80: 0x00;
 	}
-
-    switch (instr[1]) {
-#define APPLY_XX_TO_ALL_REGS(OFFSET,XX,F,VAL)	\
-    XX(OFFSET+0, cpu->regs.b,F,VAL);		\
-    XX(OFFSET+1, cpu->regs.c,F,VAL);		\
-    XX(OFFSET+2, cpu->regs.d,F,VAL);		\
-    XX(OFFSET+3, cpu->regs.e,F,VAL);		\
-    XX(OFFSET+4, cpu->regs.h,F,VAL);		\
-    XX(OFFSET+5, cpu->regs.l,F,VAL);		\
-    XX(OFFSET+6,      (*hl_),F,VAL);		\
-    XX(OFFSET+7, cpu->regs.a,F,VAL)
-#define XX(OPCODE,REG,F,VAL)				    \
-	/*F is a macro that creates F, without zf*/	    \
-    case OPCODE:					    \
-	do {						    \
-	    uint8_t old_f = cpu->regs.f;			    \
-	    (void) old_f;				    \
-	    cpu->regs.f = F(REG);			    \
-	    REG        = VAL(old_f, REG);		    \
-	    cpu->regs.f|= REG==0? 0x80: 0x00;		    \
-	} while(0);					    \
-	break
-
-#define BIT7_CF(REG) (REG>>7?0x10:0)
-#define BIT0_CF(REG) (REG&1 ?0x10:0)
-
-
-
-#define RL_VAL(REG_F,REG)  ((REG<<1)|(REG_F&0x10?1:0))
-    APPLY_XX_TO_ALL_REGS(0x10, XX, BIT7_CF, RL_VAL);
-
-#define RR_VAL(REG_F,REG)  ((REG>>1)|(REG_F&0x10?0x80:0))
-    APPLY_XX_TO_ALL_REGS(0x18, XX, BIT0_CF, RR_VAL);
-
-#define SLA_VAL(REG_F,REG) (REG<<1)
-    APPLY_XX_TO_ALL_REGS(0x20, XX, BIT7_CF, SLA_VAL);
-
-#define SRA_VAL(REG_F,REG) ((REG>>1)|(REG&0x80))
-    APPLY_XX_TO_ALL_REGS(0x28, XX, BIT0_CF, SRA_VAL);
-
-#define SWAP_F(REG) 0
-#define SWAP_VAL(REG_F,REG) ((REG>>4)|(REG<<4))
-    APPLY_XX_TO_ALL_REGS(0x30, XX, SWAP_F, SWAP_VAL);
-
-#define SRL_VAL(REG_F,REG) (REG>>1)
-    APPLY_XX_TO_ALL_REGS(0x38, XX, BIT0_CF, SRL_VAL);
-
-    }
     cpu->regs.pc += 2;
     return 0;
 }
