@@ -14,7 +14,9 @@ OBJS:=objs/core/cpu.o objs/debugger/debugger.o
 INCLUDES:=core/
 TESTS:=bin/test/test_blargg
 
-all: bin/debugger/debugger_main $(TESTS)
+all: main $(TESTS)
+main: bin/debugger/debugger_main
+	ln --force -s $^ $@
 
 .SECONDARY:
 
@@ -33,4 +35,5 @@ objs/%.o: %.c Makefile | objs/core/ objs/debugger/ objs/test/
 .PHONY: clean
 clean:
 	rm -rf objs bin
+	rm main
 	rm -if *~ */*~

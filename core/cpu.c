@@ -586,14 +586,14 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 	do {						    \
 	    uint8_t old_f = cpu->regs.f;			    \
 	    (void) old_f;				    \
-	    cpu->regs.f = F(old_f, REG);			    \
+	    cpu->regs.f = F(REG);			    \
 	    REG        = VAL(old_f, REG);		    \
 	    cpu->regs.f|= REG==0? 0x80: 0x00;		    \
 	} while(0);					    \
 	break
 
-#define BIT7_CF(REG_F,REG) (REG>>7?0x10:0)
-#define BIT0_CF(REG_F,REG) (REG&1 ?0x10:0)
+#define BIT7_CF(REG) (REG>>7?0x10:0)
+#define BIT0_CF(REG) (REG&1 ?0x10:0)
 
 #define RLC_VAL(REG_F,REG) ((REG<<1)|(REG>>7))
     APPLY_XX_TO_ALL_REGS(0x00, XX, BIT7_CF, RLC_VAL);
@@ -613,7 +613,7 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 #define SRA_VAL(REG_F,REG) ((REG>>1)|(REG&0x80))
     APPLY_XX_TO_ALL_REGS(0x28, XX, BIT0_CF, SRA_VAL);
 
-#define SWAP_F(REG_F,REG) 0
+#define SWAP_F(REG) 0
 #define SWAP_VAL(REG_F,REG) ((REG>>4)|(REG<<4))
     APPLY_XX_TO_ALL_REGS(0x30, XX, SWAP_F, SWAP_VAL);
 
