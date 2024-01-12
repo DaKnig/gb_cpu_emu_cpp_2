@@ -608,6 +608,29 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 			cpu->regs.f&= 0x10;
 			cpu->regs.f|= 0x20|((*reg & bit)?0:0x80);
 		}
+	} else {         // one of the 8 "tiny instructions"
+		(void) n;
+		int opc = n; // more meaningful name in this case
+		uint8_t bit7_cf = *reg & 0x80 ? 0x10 : 0;
+		uint8_t bit0_cf = *reg & 1 ? 0x10 : 0;
+		uint8_t old_f = cpu->regs.f;
+		(void) old_f;
+		switch(opc) {
+		case 0: // rlc
+			*reg = (*reg << 1) | (*reg >> 7);
+			break;
+		case 1: // rrc
+			*reg = (*reg >> 1) | (*reg << 7);
+		}
+		if (opc <= 1) { /* TODO: REMOVE */
+			if (opc == 0 || opc == 2 || opc == 4) // rlc rl sla
+				cpu->regs.f = bit7_cf;
+			/* else if (opc == 6) // swap */
+			/*  cpu->regs.f = 0; */
+			else // rrc rr sra srl
+				cpu->regs.f = bit0_cf;
+			cpu->regs.f |= *reg == 0? 0x80: 0x00;
+		}
 	}
 
     switch (instr[1]) {
@@ -635,11 +658,7 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 #define BIT7_CF(REG) (REG>>7?0x10:0)
 #define BIT0_CF(REG) (REG&1 ?0x10:0)
 
-#define RLC_VAL(REG_F,REG) ((REG<<1)|(REG>>7))
-    APPLY_XX_TO_ALL_REGS(0x00, XX, BIT7_CF, RLC_VAL);
 
-#define RRC_VAL(REG_F,REG) ((REG>>1)|(REG<<7))
-    APPLY_XX_TO_ALL_REGS(0x08, XX, BIT0_CF, RRC_VAL);
 
 #define RL_VAL(REG_F,REG)  ((REG<<1)|(REG_F&0x10?1:0))
     APPLY_XX_TO_ALL_REGS(0x10, XX, BIT7_CF, RL_VAL);
