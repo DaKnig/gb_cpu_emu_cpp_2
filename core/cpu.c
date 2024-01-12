@@ -566,10 +566,50 @@ bool run_single_command(struct SM83* cpu) {
     return 1;
 }
 
+#define APPLY_XX_TO_ALL_REGS(OFFSET,XX,F,VAL)	\
+    XX(OFFSET+0, cpu->regs.b,F,VAL);		\
+    XX(OFFSET+1, cpu->regs.c,F,VAL);		\
+    XX(OFFSET+2, cpu->regs.d,F,VAL);		\
+    XX(OFFSET+3, cpu->regs.e,F,VAL);		\
+    XX(OFFSET+4, cpu->regs.h,F,VAL);		\
+    XX(OFFSET+5, cpu->regs.l,F,VAL);		\
+    XX(OFFSET+6,      (*hl_),F,VAL);		\
+    XX(OFFSET+7, cpu->regs.a,F,VAL)
+
 static inline bool run_single_prefix_command(struct SM83* cpu) {
     uint8_t* instr = &cpu->mem[cpu->regs.pc];
     assert(instr[0] == 0xcb);
     uint8_t* hl_ = &cpu->mem[cpu->regs.hl];
+
+	int op = instr[1] & 7;
+	int n = (instr[1] >> 3) & 7;
+
+	uint8_t* reg;
+	switch(op) {
+	case 0: reg = &cpu->regs.b; break;
+	case 1: reg = &cpu->regs.c; break;
+	case 2: reg = &cpu->regs.d; break;
+	case 3: reg = &cpu->regs.e; break;
+	case 4: reg = &cpu->regs.h; break;
+	case 5: reg = &cpu->regs.l; break;
+	case 6: reg = &     (*hl_); break;
+	case 7: reg = &cpu->regs.a; break;
+	}
+
+	int block = instr[1] >> 6;
+	(void) block;
+	if (block) {
+		int bit = 1 << n;
+		if (block == 3) {        // SET instructions
+			*reg |= bit;
+		} else if (block == 2) { // RES instructions
+			*reg &= ~bit;
+		} else if (block == 1) { // BIT instructions
+			cpu->regs.f&= 0x10;
+			cpu->regs.f|= 0x20|((*reg & bit)?0:0x80);
+		}
+	}
+
     switch (instr[1]) {
 #define APPLY_XX_TO_ALL_REGS(OFFSET,XX,F,VAL)	\
     XX(OFFSET+0, cpu->regs.b,F,VAL);		\
@@ -620,45 +660,6 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 #define SRL_VAL(REG_F,REG) (REG>>1)
     APPLY_XX_TO_ALL_REGS(0x38, XX, BIT0_CF, SRL_VAL);
 
-
-#define APPLY_BIT_OP(OFFSET,XX,OPERATION)	\
-    XX(OFFSET+0*8, 0, OPERATION);		\
-    XX(OFFSET+1*8, 1, OPERATION);		\
-    XX(OFFSET+2*8, 2, OPERATION);		\
-    XX(OFFSET+3*8, 3, OPERATION);		\
-    XX(OFFSET+4*8, 4, OPERATION);		\
-    XX(OFFSET+5*8, 5, OPERATION);		\
-    XX(OFFSET+6*8, 6, OPERATION);		\
-    XX(OFFSET+7*8, 7, OPERATION)
-
-#define APPLY_OPERATION_TO_ALL_REGS(OFFSET,BIT,OPERATION)	\
-    OPERATION(OFFSET+0, BIT, cpu->regs.b);			\
-    OPERATION(OFFSET+1, BIT, cpu->regs.c);			\
-    OPERATION(OFFSET+2, BIT, cpu->regs.d);			\
-    OPERATION(OFFSET+3, BIT, cpu->regs.e);			\
-    OPERATION(OFFSET+4, BIT, cpu->regs.h);			\
-    OPERATION(OFFSET+5, BIT, cpu->regs.l);			\
-    OPERATION(OFFSET+6, BIT,     (*hl_));			\
-    OPERATION(OFFSET+7, BIT, cpu->regs.a)
-
-#define BIT(OPCODE,BIT,REG)			\
-    case OPCODE:				\
-	cpu->regs.f&= 0x10;			\
-	cpu->regs.f|= 0x20|(REG&(1<<BIT)?0:0x80);\
-	break
-    APPLY_BIT_OP(0x40, APPLY_OPERATION_TO_ALL_REGS, BIT);
-
-#define RES(OPCODE,BIT,REG)			\
-    case OPCODE:				\
-	REG &= ~(1<<BIT);			\
-	break
-    APPLY_BIT_OP(0x80, APPLY_OPERATION_TO_ALL_REGS, RES);
-
-#define SET(OPCODE,BIT,REG)			\
-    case OPCODE:				\
-	REG |= 1<<BIT;				\
-	break
-    APPLY_BIT_OP(0xc0, APPLY_OPERATION_TO_ALL_REGS, SET);
     }
     cpu->regs.pc += 2;
     return 0;
