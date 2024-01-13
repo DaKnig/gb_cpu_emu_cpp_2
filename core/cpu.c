@@ -40,6 +40,15 @@ bool run_single_command(struct SM83* cpu) {
 		default: __builtin_unreachable();
 		}
 	}
+ 	uint16_t* regpair_offset_bcdehlaf(uint8_t idx) {
+		switch(idx) {
+		case 0: return &cpu->regs.bc;
+		case 1: return &cpu->regs.de;
+		case 2: return &cpu->regs.hl;
+		case 3: return &cpu->regs.af;
+		default: __builtin_unreachable();
+		}
+	}
 	uint8_t* reg_offset_bcdehlhla(uint8_t idx) {
 		switch(idx) {
 		case 0: return &cpu->regs.b;
@@ -290,7 +299,6 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc = cpu->mem[cpu->regs.sp++];
 		cpu->regs.pc|= cpu->mem[cpu->regs.sp++]<<8;
 		return 0;
-	
 
     case 0xe0:
 	cpu->mem[0xff00|imm8] = cpu->regs.a;
@@ -300,16 +308,6 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.a = cpu->mem[0xff00|imm8];
 	cpu->regs.pc+=2;
 	return 0;
-#define POP(OPCODE, REG)				\
-    case OPCODE:					\
-	cpu->regs.REG = cpu->mem[cpu->regs.sp++];		\
-	cpu->regs.REG|= cpu->mem[cpu->regs.sp++]<<8;	\
-	cpu->regs.pc++;					\
-	return 0
-
-    POP(0xc1, bc);
-    POP(0xd1, de);
-    POP(0xe1, hl);
     case 0xf1:
 	cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
 	cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
@@ -347,18 +345,22 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->mem[--cpu->regs.sp] = cpu->regs.pc;
 		cpu->regs.pc = imm16;
 		return 0;
-		
-#define PUSH(OPCODE, REG)				\
-    case OPCODE:					\
-	cpu->mem[--cpu->regs.sp] = cpu->regs.REG >> 8;	\
-	cpu->mem[--cpu->regs.sp] = cpu->regs.REG;          \
-	cpu->regs.pc++;					\
-	return 0
-    PUSH(0xc5, bc);
-    PUSH(0xd5, de);
-    PUSH(0xe5, hl);
-    PUSH(0xf5, af);
 
+	case 0xc5: case 0xd5: case 0xe5: case 0xf5: { // push r16
+		uint16_t regpair = *regpair_offset_bcdehlaf((instr[0] >> 4) - 0xc);
+		cpu->mem[--cpu->regs.sp] = regpair >> 8;
+		cpu->mem[--cpu->regs.sp] = regpair;
+		cpu->regs.pc++;
+		return 0;
+	}
+
+	case 0xc1: case 0xd1: case 0xe1: {
+		uint16_t* regpair = regpair_offset_bcdehlaf((instr[0] >> 4) - 0xc);
+		*regpair = cpu->mem[cpu->regs.sp++];
+		*regpair|= cpu->mem[cpu->regs.sp++]<<8;
+		cpu->regs.pc++;
+		return 0;
+	}
 #define OP_A_D8(OPCODE, OP, NF, HF)				\
     case OPCODE:						\
 	do {							\
