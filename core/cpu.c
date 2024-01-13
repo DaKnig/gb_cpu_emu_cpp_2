@@ -69,12 +69,9 @@ bool run_single_command(struct SM83* cpu) {
 		*regpair_offset_bcdehlhl(instr[0] >> 4) = cpu->regs.a;
 		cpu->regs.pc++;
 		return 0;
-	case 0x03: case 0x13: case 0x23: case 0x33: // inc r16 ; dec r16
-		++*regpair_offset_bcdehlsp(instr[0] >> 4);
-		cpu->regs.pc++;
-		return 0;
-	case 0x0b: case 0x1b: case 0x2b: case 0x3b:
-		--*regpair_offset_bcdehlsp(instr[0] >> 4);
+	case 0x03: case 0x13: case 0x23: case 0x33:
+	case 0x0b: case 0x1b: case 0x2b: case 0x3b: // inc r16 ; dec r16
+		*regpair_offset_bcdehlsp(instr[0] >> 4) += (instr[0] & 8 ? -1 : 1);
 		cpu->regs.pc++;
 		return 0;
 
