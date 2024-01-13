@@ -1,3 +1,5 @@
+/* #define NDEBUG */
+
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -5,8 +7,6 @@
 #include <stdlib.h>
 
 #include "cpu.h"
-
-//#define DEBUG
 
 static inline bool run_single_prefix_command(struct SM83* cpu);
 

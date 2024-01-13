@@ -29,6 +29,9 @@ objs/%.o: %.cpp Makefile | objs/core/ objs/debugger/ objs/test/
 objs/%.o: %.c Makefile | objs/core/ objs/debugger/ objs/test/
 	$(CC) $(CSTD) $(CFLAGS) -I$(INCLUDES) -c -o $@ $<
 
+objs/%.s: %.c Makefile | objs/core/ objs/debugger/ objs/test/
+	$(CC) $(CSTD) $(CFLAGS) -I$(INCLUDES) -S -o $@ $<
+
 %/:
 	mkdir -p $@
 
