@@ -60,16 +60,16 @@ bool run_single_command(struct SM83* cpu) {
 		return 1;
 	}
     switch (instr[0]) {
-	case 0x01: case 0x11: case 0x21: case 0x31:
+	case 0x01: case 0x11: case 0x21: case 0x31: // ld r16, n16
 		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
 		*regpair = imm16;
 		cpu->regs.pc += 3;
 		return 0;
-	case 0x02: case 0x12: case 0x22: case 0x32:
+	case 0x02: case 0x12: case 0x22: case 0x32: // ld [r16], a
 		*regpair_offset_bcdehlhl(instr[0] >> 4) = cpu->regs.a;
 		cpu->regs.pc++;
 		return 0;
-	case 0x03: case 0x13: case 0x23: case 0x33:
+	case 0x03: case 0x13: case 0x23: case 0x33: // inc r16 ; dec r16
 		++*regpair_offset_bcdehlsp(instr[0] >> 4);
 		cpu->regs.pc++;
 		return 0;
@@ -81,7 +81,7 @@ bool run_single_command(struct SM83* cpu) {
 	case 0x04: case 0x14: case 0x24: case 0x34:
 	case 0x05: case 0x15: case 0x25: case 0x35:
 	case 0x0c: case 0x1c: case 0x2c: case 0x3c:
-	case 0x0d: case 0x1d: case 0x2d: case 0x3d: {
+	case 0x0d: case 0x1d: case 0x2d: case 0x3d: { // inc r8 ; dec r8
 		uint8_t op = instr[0] & 1 ? -1 : 1;
 	    uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
 		uint32_t new_res = *reg += op;
@@ -95,14 +95,14 @@ bool run_single_command(struct SM83* cpu) {
 	}
 
 	case 0x06: case 0x16: case 0x26: case 0x36:
-	case 0x0e: case 0x1e: case 0x2e: case 0x3e: {
+	case 0x0e: case 0x1e: case 0x2e: case 0x3e: { // ld r8, n8
 		uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
 		*reg = imm8;
 		cpu->regs.pc += 2;
 		return 0;
 	}
 
-    case 0x07: case 0x17: case 0x0f: case 0x1f: // RLCA RLA RRCA RRA
+    case 0x07: case 0x17: case 0x0f: case 0x1f: // rlca rla rrca rra
 		cpu->regs.pc--;
 		run_single_prefix_command(cpu);
 		cpu->regs.f &= 0x10; // zero the zero
@@ -162,20 +162,20 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc+=3;
 	return 0;
 
-	case 0x18:
+	case 0x18: // jr e8
 		cpu->regs.pc += 2;
 		cpu->regs.pc += (int8_t) imm8;
 		return 0;
-	case 0x20: case 0x28: case 0x30: case 0x38:
+	case 0x20: case 0x28: case 0x30: case 0x38: // jr c, 38
 		cpu->regs.pc += 2;
 		uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
 		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
 		return 0;
 
-	case 0x09: case 0x19: case 0x29: case 0x39: {
+	case 0x09: case 0x19: case 0x29: case 0x39: { // add hl, r16
 		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
 	    uint32_t new_val = cpu->regs.hl+ *regpair;
-	    cpu->regs.f &= 0x80;
+	    cpu->regs.f &= 0x80; // keep zf
 	    cpu->regs.f |= new_val > 0xffff ? 0x10 : 0;
 	    uint16_t bottom_12 = (cpu->regs.hl & 0x0fff) + (*regpair & 0x0fff);
 	    cpu->regs.f |= bottom_12 >= 0x1000 ? 0x20 : 0;
@@ -184,7 +184,7 @@ bool run_single_command(struct SM83* cpu) {
 	    return 0;
 	}
 
-	case 0x0a: case 0x1a: case 0x2a: case 0x3a:
+	case 0x0a: case 0x1a: case 0x2a: case 0x3a: // ld a, [r16]
 		cpu->regs.a = *regpair_offset_bcdehlhl(instr[0] >> 4);
 		cpu->regs.pc ++;
 		return 0;
