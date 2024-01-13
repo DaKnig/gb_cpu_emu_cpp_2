@@ -166,7 +166,7 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc += 2;
 		cpu->regs.pc += (int8_t) imm8;
 		return 0;
-	case 0x20: case 0x28: case 0x30: case 0x38: // jr c, 38
+	case 0x20: case 0x28: case 0x30: case 0x38: // jr cc, e8
 		cpu->regs.pc += 2;
 		uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
 		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
@@ -399,17 +399,13 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc+=2;
 	return 0;
     }
-#define RST(VECTOR)						\
-    case 0xc7+VECTOR:					        \
-	cpu->regs.pc++;						\
-	cpu->mem[--cpu->regs.sp] = cpu->regs.pc >> 8;		\
-	cpu->mem[--cpu->regs.sp] = cpu->regs.pc;			\
-	cpu->regs.pc = VECTOR;					\
-	return 0
-    RST(0x00); RST(0x08);
-    RST(0x10); RST(0x18);
-    RST(0x20); RST(0x28);
-    RST(0x30); RST(0x38);
+
+	case 0xc7: case 0xcf: case 0xd7: case 0xdf:
+	case 0xe7: case 0xef: case 0xf7: case 0xff: // rst
+		cpu->regs.pc++;
+		cpu->mem[--cpu->regs.sp] = cpu->regs.pc >> 8;
+		cpu->mem[--cpu->regs.sp] = cpu->regs.pc;
+		cpu->regs.pc = instr[0] - 0xc7;
 
     case 0xe8: { // ADD SP, r8
 	unsigned bottom_8_bits = (cpu->regs.sp & 0xff) + imm8;
