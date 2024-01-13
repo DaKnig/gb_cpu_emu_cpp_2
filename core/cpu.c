@@ -20,6 +20,8 @@ bool run_single_command(struct SM83* cpu) {
     const bool hf = 1 & (cpu->regs.f>>5), cf = 1 & (cpu->regs.f>>4);
     (void)hf, (void)nf;
 
+	uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
+
 	uint16_t* regpair_offset_bcdehlsp(uint8_t idx) {
 		switch(idx) {
 		case 0: return &cpu->regs.bc;
@@ -159,14 +161,14 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc+=3;
 	return 0;
 
+	case 0x20: case 0x28: case 0x30: case 0x38: // jr cc, e8
+		if (!cond) {
+			cpu->regs.pc += 2;
+			return 0;
+		} // fallthrough
 	case 0x18: // jr e8
 		cpu->regs.pc += 2;
 		cpu->regs.pc += (int8_t) imm8;
-		return 0;
-	case 0x20: case 0x28: case 0x30: case 0x38: // jr cc, e8
-		cpu->regs.pc += 2;
-		uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
-		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
 		return 0;
 
 	case 0x09: case 0x19: case 0x29: case 0x39: { // add hl, r16
@@ -278,18 +280,18 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc++;					\
 	return 0
     XX_FOR_ALL_REGS(CP);
-#define COND_RET(OPCODE, COND)				\
-    case OPCODE:					\
-	if (COND) {					\
-	    cpu->regs.pc = cpu->mem[cpu->regs.sp++];	\
-	    cpu->regs.pc|= cpu->mem[cpu->regs.sp++]<<8;	\
-	} else						\
-	    cpu->regs.pc++;				\
-	return 0
-    COND_RET(0xc0, !zf);
-    COND_RET(0xd0, !cf);
-    COND_RET(0xc8, zf);
-    COND_RET(0xd8, cf);
+
+	case 0xc0: case 0xd0: case 0xc8: case 0xd8: // ret cc
+		if (!cond) {
+			cpu->regs.pc++;
+			return 0;
+		} // fallthrough
+	case 0xc9: case 0xd9: // ret, reti
+		cpu->regs.pc = cpu->mem[cpu->regs.sp++];
+		cpu->regs.pc|= cpu->mem[cpu->regs.sp++]<<8;
+		return 0;
+	
+
     case 0xe0:
 	cpu->mem[0xff00|imm8] = cpu->regs.a;
 	cpu->regs.pc+=2;
@@ -313,15 +315,15 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
 	cpu->regs.pc++;
 	return 0;
-#define COND_JP(OPCODE, COND)				\
-    case OPCODE:					\
-	cpu->regs.pc = COND ? imm16 : cpu->regs.pc + 3;	\
-	return 0
+	case 0xc2: case 0xd2: case 0xca: case 0xda: // jp cc, a16
+		if (!cond) {
+			cpu->regs.pc += 3;
+			return 0;
+		} // fallthrough
+	case 0xc3:
+		cpu->regs.pc = imm16;
+		return 0;
 
-    COND_JP(0xc2, !zf);
-    COND_JP(0xd2, !cf);
-    COND_JP(0xca, zf);
-    COND_JP(0xda, cf);
     case 0xe2:
 	cpu->mem[0xff00|cpu->regs.c] = cpu->regs.a;
 	cpu->regs.pc++;
@@ -330,25 +332,22 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.a = cpu->mem[0xff00|cpu->regs.c];
 	cpu->regs.pc++;
 	return 0;
-    COND_JP(0xc3, 1);
     // some bad instructions - hang and error out.
     case 0xf3: // DI; we dont need this.
 	cpu->regs.pc++;// acts as a noop
 	return 0;
-#define COND_CALL(OPCODE, COND)					\
-    case OPCODE:						\
-	cpu->regs.pc+=3;						\
-	if (COND) {						\
-	    cpu->mem[--cpu->regs.sp] = cpu->regs.pc >> 8;		\
-	    cpu->mem[--cpu->regs.sp] = cpu->regs.pc;		\
-	    cpu->regs.pc = imm16;				\
-	}							\
-	return 0
-    COND_CALL(0xc4, !zf);
-    COND_CALL(0xd4, !cf);
-    COND_CALL(0xcc, zf);
-    COND_CALL(0xdc, cf);
-    COND_CALL(0xcd, 1);
+	case 0xc4: case 0xd4: case 0xcc: case 0xdc: // call cc, n16
+		if (!cond) {
+			cpu->regs.pc += 3;
+			return 0;
+		} // fallthrough
+	case 0xcd: // call n16
+		cpu->regs.pc += 3;
+		cpu->mem[--cpu->regs.sp] = cpu->regs.pc >> 8;
+		cpu->mem[--cpu->regs.sp] = cpu->regs.pc;
+		cpu->regs.pc = imm16;
+		return 0;
+		
 #define PUSH(OPCODE, REG)				\
     case OPCODE:					\
 	cpu->mem[--cpu->regs.sp] = cpu->regs.REG >> 8;	\
@@ -422,8 +421,6 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc += 2;
 	return 0;
     }
-    COND_RET(0xc9, 1);
-    COND_RET(0xd9, 1);//reti == ret because we dont do interrupts anyways
     case 0xe9:
 	cpu->regs.pc = cpu->regs.hl;
 	return 0;
