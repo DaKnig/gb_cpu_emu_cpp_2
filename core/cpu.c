@@ -60,12 +60,6 @@ bool run_single_command(struct SM83* cpu) {
 		return 1;
 	}
     switch (instr[0]) {
-#define LOAD(OPCODE, REG, VAL, SIZE)		\
-    case OPCODE:				\
-	cpu->regs. REG = VAL;			\
-	cpu->regs.pc += SIZE;			\
-	return 0
-
 	case 0x01: case 0x11: case 0x21: case 0x31:
 		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
 		*regpair = imm16;
@@ -100,14 +94,13 @@ bool run_single_command(struct SM83* cpu) {
 	    return 0;
 	}
 
-
-    LOAD(0x06, b, imm8, 2);
-    LOAD(0x16, d, imm8, 2);
-    LOAD(0x26, h, imm8, 2);
-    case 0x36:
-	cpu->mem[cpu->regs.hl] = imm8;
-	cpu->regs.pc+=2;
-	return 0;
+	case 0x06: case 0x16: case 0x26: case 0x36:
+	case 0x0e: case 0x1e: case 0x2e: case 0x3e: {
+		uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
+		*reg = imm8;
+		cpu->regs.pc += 2;
+		return 0;
+	}
 
     case 0x07: case 0x17: case 0x0f: case 0x1f: // RLCA RLA RRCA RRA
 		cpu->regs.pc--;
@@ -169,17 +162,13 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc+=3;
 	return 0;
 
-#define COND_JR(OPCODE, COND)				\
-    case OPCODE:					\
-	cpu->regs.pc += 2;				\
-	cpu->regs.pc += (int8_t) (COND ? imm8 : 0);	\
-	return 0
-
-    COND_JR(0x18, 1 );
+	case 0x18:
+		cpu->regs.pc += 2;
+		cpu->regs.pc += (int8_t) imm8;
+		return 0;
 	case 0x20: case 0x28: case 0x30: case 0x38:
 		cpu->regs.pc += 2;
 		uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
-		/* uint8_t cond = instr[0] == ; */
 		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
 		return 0;
 
@@ -200,13 +189,6 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc ++;
 		return 0;
 
-
-
-    LOAD(0x0e, c, imm8, 2);
-    LOAD(0x1e, e, imm8, 2);
-    LOAD(0x2e, l, imm8, 2);
-    LOAD(0x3e, a, imm8, 2);
-
     case 0x2f: // CPL
 	cpu->regs.f |= 0x60;
 	cpu->regs.a ^= 0xff;
@@ -219,43 +201,6 @@ bool run_single_command(struct SM83* cpu) {
 
 	cpu->regs.pc++;
 	return 0;
-#define LOAD_FROM_ALL_REGS(REG, OFFSET)		\
-    LOAD(OFFSET+0, REG, cpu->regs.b, 1);		        \
-    LOAD(OFFSET+1, REG, cpu->regs.c, 1);		        \
-    LOAD(OFFSET+2, REG, cpu->regs.d, 1);		        \
-    LOAD(OFFSET+3, REG, cpu->regs.e, 1);		        \
-    LOAD(OFFSET+4, REG, cpu->regs.h, 1);		        \
-    LOAD(OFFSET+5, REG, cpu->regs.l, 1);		        \
-    case OFFSET+6:				\
-	cpu->regs. REG = cpu->mem[cpu->regs.hl];	\
-	cpu->regs.pc++;				\
-	return 0;				\
-    LOAD(OFFSET+7, REG, cpu->regs.a, 1);
-
-    LOAD_FROM_ALL_REGS(b, 0x40);
-    LOAD_FROM_ALL_REGS(c, 0x48);
-    LOAD_FROM_ALL_REGS(d, 0x50);
-    LOAD_FROM_ALL_REGS(e, 0x58);
-    LOAD_FROM_ALL_REGS(h, 0x60);
-    LOAD_FROM_ALL_REGS(l, 0x68);
-    LOAD_FROM_ALL_REGS(a, 0x78);
-
-#define STORE_TO_HL(OPCODE, REG)		\
-    case OPCODE:				\
-	cpu->mem[cpu->regs.hl] = cpu->regs. REG ;	\
-	cpu->regs.pc++;				\
-	return 0
-
-    STORE_TO_HL(0x70, b);
-    STORE_TO_HL(0x71, c);
-    STORE_TO_HL(0x72, d);
-    STORE_TO_HL(0x73, e);
-    STORE_TO_HL(0x74, h);
-    STORE_TO_HL(0x75, l);
-    case 0x76: // HALT
-	cpu->regs.pc++;
-	return 1;
-    STORE_TO_HL(0x77, a);
 
 #define XX_FOR_ALL_REGS(XX)	 \
     XX(cpu->regs.b,0);		 \
@@ -509,7 +454,13 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc++;
 	return 0;
     }
-
+	if ((instr[0] & 0300) == 0100) { // reg to reg loads
+		auto src = reg_offset_bcdehlhla(instr[0] & 7);
+		auto dest = reg_offset_bcdehlhla((instr[0] >> 3) & 7);
+		*dest = *src;
+		cpu->regs.pc++;
+		return 0;
+	}
 
     fprintf(stderr, "unhandled opcode: %02x\n", instr[0]);
     return 1;
