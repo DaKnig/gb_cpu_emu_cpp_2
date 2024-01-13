@@ -38,7 +38,19 @@ bool run_single_command(struct SM83* cpu) {
 		default: __builtin_unreachable();
 		}
 	}
-
+	uint8_t* reg_offset_bcdehlhla(uint8_t idx) {
+		switch(idx) {
+		case 0: return &cpu->regs.b;
+		case 1: return &cpu->regs.c;
+		case 2: return &cpu->regs.d;
+		case 3: return &cpu->regs.e;
+		case 4: return &cpu->regs.h;
+		case 5: return &cpu->regs.l;
+		case 6: return &cpu->mem[cpu->regs.hl];
+		case 7: return &cpu->regs.a;
+		default: __builtin_unreachable();
+		}
+	}
 
 	if (instr[0] == 0) {
 		cpu->regs.pc++;
@@ -46,12 +58,6 @@ bool run_single_command(struct SM83* cpu) {
 	} else if (instr[0] == 0x10) {
 		cpu->regs.pc += 2;
 		return 1;
-	/* } else if (instr[0] == 0x01 || instr[0] == 0x11 || */
-	/* 		   instr[0] == 0x21 || instr[0] == 0x31) { */
-	/* 	uint8_t regpair = regpair_offset_bcdehlsp(instr[0]>>4); */
-	/* 	cpu->regs.registers[regpair] = imm16; */
-	/* 	cpu->regs.pc += 3; */
-	/* 	return 0; */
 	}
     switch (instr[0]) {
 #define LOAD(OPCODE, REG, VAL, SIZE)		\
@@ -78,31 +84,22 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc++;
 		return 0;
 
-#define REG_INC_OR_DEC(OPCODE,REG,OP)					\
-    case OPCODE:							\
-	do {								\
-	    uint32_t old_val = REG;					\
-	    uint32_t new_val = OP old_val;				\
-	    cpu->regs.f = cpu->regs.f & 0x10; /* only keep cf */	\
-	    cpu->regs.f|= (new_val&0xff) == 0? 0x80 : 0x00;		\
-	    cpu->regs.f|= # OP [0]=='-' ? 0x40 : 0x00;			\
-	    if ((# OP [0] == '-' && new_val%16 == 0xf) ||		\
-		(# OP [0] == '+' && new_val%16 == 0x0))	/*hf*/		\
-		cpu->regs.f|= 0x20;					\
-	    REG = new_val;						\
-	    cpu->regs.pc++;						\
-	    return 0;							\
-	} while(0)
+	case 0x04: case 0x14: case 0x24: case 0x34:
+	case 0x05: case 0x15: case 0x25: case 0x35:
+	case 0x0c: case 0x1c: case 0x2c: case 0x3c:
+	case 0x0d: case 0x1d: case 0x2d: case 0x3d: {
+		uint8_t op = instr[0] & 1 ? -1 : 1;
+	    uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
+		uint32_t new_res = *reg += op;
+		cpu->regs.f = cpu->regs.f & 0x10; // keep cf
+		cpu->regs.f|= *reg ? 0x00 : 0x80;
+		uint8_t hf = (new_res & 0xf) == (instr[0] & 1 ? 0xf : 0x0);
+		cpu->regs.f|= 0x20 * hf;
+		cpu->regs.f|= instr[0] & 1 ? 0x40 : 0x00;
+	    cpu->regs.pc++;
+	    return 0;
+	}
 
-    REG_INC_OR_DEC(0x04, cpu->regs.b, ++);
-    REG_INC_OR_DEC(0x14, cpu->regs.d, ++);
-    REG_INC_OR_DEC(0x24, cpu->regs.h, ++);
-    REG_INC_OR_DEC(0x34, cpu->mem[cpu->regs.hl], ++);
-
-    REG_INC_OR_DEC(0x05, cpu->regs.b, --);
-    REG_INC_OR_DEC(0x15, cpu->regs.d, --);
-    REG_INC_OR_DEC(0x25, cpu->regs.h, --);
-    REG_INC_OR_DEC(0x35, cpu->mem[cpu->regs.hl], --);
 
     LOAD(0x06, b, imm8, 2);
     LOAD(0x16, d, imm8, 2);
@@ -186,45 +183,24 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
 		return 0;
 
-#define ADD_HL(OPCODE, REG)						\
-    case OPCODE:							\
-	do {								\
-	    uint32_t new_val = cpu->regs.hl+cpu->regs. REG ;		\
-	    cpu->regs.f &= 0x80;					\
-	    cpu->regs.f |= (new_val>0xffff ? 0x10:0);			\
-	    int bottom_12 = (cpu->regs.hl&0x0fff)+(cpu->regs. REG&0x0fff); \
-	    cpu->regs.f |= (bottom_12>0x0fff ? 0x20:0);			\
-	    cpu->regs.hl= new_val;					\
-	    cpu->regs.pc++;						\
-	    return 0;							\
-	} while(0)
+	case 0x09: case 0x19: case 0x29: case 0x39: {
+		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
+	    uint32_t new_val = cpu->regs.hl+ *regpair;
+	    cpu->regs.f &= 0x80;
+	    cpu->regs.f |= new_val > 0xffff ? 0x10 : 0;
+	    uint16_t bottom_12 = (cpu->regs.hl & 0x0fff) + (*regpair & 0x0fff);
+	    cpu->regs.f |= bottom_12 >= 0x1000 ? 0x20 : 0;
+	    cpu->regs.hl = new_val;
+	    cpu->regs.pc++;
+	    return 0;
+	}
 
-    ADD_HL(0x09, bc);
-    ADD_HL(0x19, de);
-    ADD_HL(0x29, hl);
-    ADD_HL(0x39, sp);
-
-#define LOAD_A(OPCODE, ADDR)			\
-    case OPCODE:				\
-	cpu->regs.a = cpu->mem[cpu->regs. ADDR];	\
-	cpu->regs.pc ++;				\
-	return 0
-
-    LOAD_A(0x0a, bc);
-    LOAD_A(0x1a, de);
-    LOAD_A(0x2a, hl++);
-    LOAD_A(0x3a, hl--);
+	case 0x0a: case 0x1a: case 0x2a: case 0x3a:
+		cpu->regs.a = *regpair_offset_bcdehlhl(instr[0] >> 4);
+		cpu->regs.pc ++;
+		return 0;
 
 
-    REG_INC_OR_DEC(0x0c, cpu->regs.c, ++);
-    REG_INC_OR_DEC(0x1c, cpu->regs.e, ++);
-    REG_INC_OR_DEC(0x2c, cpu->regs.l, ++);
-    REG_INC_OR_DEC(0x3c, cpu->regs.a, ++);
-
-    REG_INC_OR_DEC(0x0d, cpu->regs.c, --);
-    REG_INC_OR_DEC(0x1d, cpu->regs.e, --);
-    REG_INC_OR_DEC(0x2d, cpu->regs.l, --);
-    REG_INC_OR_DEC(0x3d, cpu->regs.a, --);
 
     LOAD(0x0e, c, imm8, 2);
     LOAD(0x1e, e, imm8, 2);
