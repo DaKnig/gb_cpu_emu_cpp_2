@@ -20,45 +20,63 @@ bool run_single_command(struct SM83* cpu) {
     const bool hf = 1 & (cpu->regs.f>>5), cf = 1 & (cpu->regs.f>>4);
     (void)hf, (void)nf;
 
-    switch (instr[0]) {
-    case 0x00:
-	cpu->regs.pc++;
-	return 0;
-    case 0x10:
-	cpu->regs.pc += 2;
-	return 1;
+	uint16_t* regpair_offset_bcdehlsp(uint8_t idx) {
+		switch(idx) {
+		case 0: return &cpu->regs.bc;
+		case 1: return &cpu->regs.de;
+		case 2: return &cpu->regs.hl;
+		case 3: return &cpu->regs.sp;
+		default: __builtin_unreachable();
+		}
+	}
+ 	uint8_t* regpair_offset_bcdehlhl(uint8_t idx) {
+		switch(idx) {
+		case 0: return &cpu->mem[cpu->regs.bc];
+		case 1: return &cpu->mem[cpu->regs.de];
+		case 2: return &cpu->mem[cpu->regs.hl++];
+		case 3: return &cpu->mem[cpu->regs.hl--];
+		default: __builtin_unreachable();
+		}
+	}
 
+
+	if (instr[0] == 0) {
+		cpu->regs.pc++;
+		return 0;
+	} else if (instr[0] == 0x10) {
+		cpu->regs.pc += 2;
+		return 1;
+	/* } else if (instr[0] == 0x01 || instr[0] == 0x11 || */
+	/* 		   instr[0] == 0x21 || instr[0] == 0x31) { */
+	/* 	uint8_t regpair = regpair_offset_bcdehlsp(instr[0]>>4); */
+	/* 	cpu->regs.registers[regpair] = imm16; */
+	/* 	cpu->regs.pc += 3; */
+	/* 	return 0; */
+	}
+    switch (instr[0]) {
 #define LOAD(OPCODE, REG, VAL, SIZE)		\
     case OPCODE:				\
 	cpu->regs. REG = VAL;			\
 	cpu->regs.pc += SIZE;			\
 	return 0
 
-    LOAD(0x01, bc, imm16, 3);
-    LOAD(0x11, de, imm16, 3);
-    LOAD(0x21, hl, imm16, 3);
-    LOAD(0x31, sp, imm16, 3);
-
-#define INDIRECT_STORE_A(OPCODE, DEST)		\
-    case OPCODE:				\
-    	cpu->mem[cpu->regs. DEST ] = cpu->regs.a;	\
-	cpu->regs.pc++;				\
-	return 0
-    INDIRECT_STORE_A(0x02, bc);
-    INDIRECT_STORE_A(0x12, de);
-    INDIRECT_STORE_A(0x22, hl++);
-    INDIRECT_STORE_A(0x32, hl--);
-
-#define DOUBLE_REG_INC_OR_DEC(OPCODE,REG,OP)	\
-    case OPCODE:				\
-	cpu->regs. REG OP;			\
-	cpu->regs.pc++;				\
-	return 0
-
-    DOUBLE_REG_INC_OR_DEC(0x03, bc, ++);
-    DOUBLE_REG_INC_OR_DEC(0x13, de, ++);
-    DOUBLE_REG_INC_OR_DEC(0x23, hl, ++);
-    DOUBLE_REG_INC_OR_DEC(0x33, sp, ++);
+	case 0x01: case 0x11: case 0x21: case 0x31:
+		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
+		*regpair = imm16;
+		cpu->regs.pc += 3;
+		return 0;
+	case 0x02: case 0x12: case 0x22: case 0x32:
+		*regpair_offset_bcdehlhl(instr[0] >> 4) = cpu->regs.a;
+		cpu->regs.pc++;
+		return 0;
+	case 0x03: case 0x13: case 0x23: case 0x33:
+		++*regpair_offset_bcdehlsp(instr[0] >> 4);
+		cpu->regs.pc++;
+		return 0;
+	case 0x0b: case 0x1b: case 0x2b: case 0x3b:
+		--*regpair_offset_bcdehlsp(instr[0] >> 4);
+		cpu->regs.pc++;
+		return 0;
 
 #define REG_INC_OR_DEC(OPCODE,REG,OP)					\
     case OPCODE:							\
@@ -94,22 +112,11 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc+=2;
 	return 0;
 
-    // C <- [7 <- 0] <- [7]
-    case 0x07: // RLCA
-	cpu->regs.f &= 0x0f;
-	cpu->regs.f |= (cpu->regs.a >> 7) << 4;
-	cpu->regs.a = (cpu->regs.a << 1) + (cpu->regs.a >> 7);
-
-	cpu->regs.pc++;
-	return 0;
-    // C <- [7 <- 0] <- C
-    case 0x17: // RLA
-	cpu->regs.f &= 0x0f;
-	cpu->regs.f |= (cpu->regs.a >> 7) << 4;
-	cpu->regs.a = (cpu->regs.a << 1) + cf;
-
-	cpu->regs.pc++;
-	return 0;
+    case 0x07: case 0x17: case 0x0f: case 0x1f: // RLCA RLA RRCA RRA
+		cpu->regs.pc--;
+		run_single_prefix_command(cpu);
+		cpu->regs.f &= 0x10; // zero the zero
+		return 0;
     // https://github.com/pinobatch/numism/blob/main/docs/gb_emu_testing.md
     case 0x27: {// DAA
 	{
@@ -149,19 +156,6 @@ bool run_single_command(struct SM83* cpu) {
 	    cpu->regs.af &= ~GB_HALF_CARRY_FLAG;
 	    cpu->regs.af |= result << 8;
 	}
-
-	// cpu->regs.f |= (nf == 0 && cpu->regs.a >= 0x9a) << 4;
-	// cpu->regs.f |= (nf == 0 && cpu->regs.a % 16 > 10) << 5;
-
-	// const uint8_t adjustment = 0x06 * hf + 0x60 * cf;
-	// const int res = cpu->regs.a + (nf ? -adjustment : adjustment);
-
-	// cpu->regs.a += res;
-
-	// cpu->regs.f &= 0x5f; // nf is unchanged; hf is zero; zf is calc'd
-	// cpu->regs.f |= (cpu->regs.a == 0) << 7; // what about cf???
-	// cpu->regs.f |= (res > 0x99 || res < 0) << 4; // I think???
-
 	cpu->regs.pc++;
 	return 0;
 	}
@@ -185,11 +179,12 @@ bool run_single_command(struct SM83* cpu) {
 	return 0
 
     COND_JR(0x18, 1 );
-    COND_JR(0x28, zf);
-    COND_JR(0x38, cf);
-
-    COND_JR(0x20,!zf);
-    COND_JR(0x30,!cf);
+	case 0x20: case 0x28: case 0x30: case 0x38:
+		cpu->regs.pc += 2;
+		uint8_t cond = !(instr[0] & 8) - ((instr[0] & 16) ? cf : zf);
+		/* uint8_t cond = instr[0] == ; */
+		cpu->regs.pc += (int8_t) (cond ? imm8 : 0);
+		return 0;
 
 #define ADD_HL(OPCODE, REG)						\
     case OPCODE:							\
@@ -220,10 +215,6 @@ bool run_single_command(struct SM83* cpu) {
     LOAD_A(0x2a, hl++);
     LOAD_A(0x3a, hl--);
 
-    DOUBLE_REG_INC_OR_DEC(0x0b, bc, --);
-    DOUBLE_REG_INC_OR_DEC(0x1b, de, --);
-    DOUBLE_REG_INC_OR_DEC(0x2b, hl, --);
-    DOUBLE_REG_INC_OR_DEC(0x3b, sp, --);
 
     REG_INC_OR_DEC(0x0c, cpu->regs.c, ++);
     REG_INC_OR_DEC(0x1c, cpu->regs.e, ++);
@@ -239,24 +230,6 @@ bool run_single_command(struct SM83* cpu) {
     LOAD(0x1e, e, imm8, 2);
     LOAD(0x2e, l, imm8, 2);
     LOAD(0x3e, a, imm8, 2);
-
-    // [0] -> [7 -> 0] -> C
-    case 0x0f:
-	cpu->regs.f &= 0x0f;
-	cpu->regs.f |= (cpu->regs.a & 1) << 4;
-	cpu->regs.a = (cpu->regs.a << 7) | (cpu->regs.a >> 1);
-
-	cpu->regs.pc++;
-	return 0;
-
-    //C -> [7 -> 0] -> C
-    case 0x1f: // RRA
-	cpu->regs.f &= 0x0f;
-	cpu->regs.f |= (cpu->regs.a & 1) << 4;
-	cpu->regs.a = (cf << 7) | (cpu->regs.a >> 1);
-
-	cpu->regs.pc++;
-	return 0;
 
     case 0x2f: // CPL
 	cpu->regs.f |= 0x60;
@@ -578,7 +551,7 @@ bool run_single_command(struct SM83* cpu) {
 
 static inline bool run_single_prefix_command(struct SM83* cpu) {
     uint8_t* instr = &cpu->mem[cpu->regs.pc];
-    assert(instr[0] == 0xcb);
+    assert(instr[0] == 0xcb || (instr[1]|0x18) == 0x1f);
     uint8_t* hl_ = &cpu->mem[cpu->regs.hl];
 
 	int op = instr[1] & 7;
