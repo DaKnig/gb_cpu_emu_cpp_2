@@ -10,6 +10,21 @@
 
 static inline bool run_single_prefix_command(struct SM83* cpu);
 
+static inline uint8_t fetch(struct SM83* cpu) {
+	return cpu->mem[cpu->regs.pc++];
+}
+
+static inline uint8_t imm8_f(struct SM83* cpu) {
+	return fetch(cpu);
+}
+
+static inline uint16_t imm16_f(struct SM83* cpu) {
+	uint8_t lower = fetch(cpu);
+	uint8_t upper = fetch(cpu);
+	uint16_t result = (upper << 8) | lower;
+	return result;
+}
+
 bool run_single_command(struct SM83* cpu) {
     // add flags and all later
     uint8_t instr[4]; memcpy(instr, &cpu->mem[cpu->regs.pc], sizeof(instr));
@@ -72,9 +87,9 @@ bool run_single_command(struct SM83* cpu) {
 	}
     switch (instr[0]) {
 	case 0x01: case 0x11: case 0x21: case 0x31: // ld r16, n16
+		cpu->regs.pc++;
 		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
-		*regpair = imm16;
-		cpu->regs.pc += 3;
+		*regpair = imm16_f(cpu);
 		return 0;
 	case 0x02: case 0x12: case 0x22: case 0x32: // ld [r16], a
 		*regpair_offset_bcdehlhl(instr[0] >> 4) = cpu->regs.a;
@@ -104,14 +119,13 @@ bool run_single_command(struct SM83* cpu) {
 
 	case 0x06: case 0x16: case 0x26: case 0x36:
 	case 0x0e: case 0x1e: case 0x2e: case 0x3e: { // ld r8, n8
+		cpu->regs.pc++;
 		uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
-		*reg = imm8;
-		cpu->regs.pc += 2;
+		*reg = imm8_f(cpu);
 		return 0;
 	}
 
     case 0x07: case 0x17: case 0x0f: case 0x1f: // rlca rla rrca rra
-		cpu->regs.pc--;
 		run_single_prefix_command(cpu);
 		cpu->regs.f &= 0x10; // zero the zero
 		return 0;
@@ -164,20 +178,22 @@ bool run_single_command(struct SM83* cpu) {
 	cpu->regs.pc++;
 	return 0;
 
-    case 0x08: // ld (a16), sp
+    case 0x08: { // ld (a16), sp
+	cpu->regs.pc++;
+	uint16_t imm16 = imm16_f(cpu);
 	cpu->mem[imm16] = cpu->regs.sp & 0xff;
 	cpu->mem[imm16+1]=cpu->regs.sp >> 8;
-	cpu->regs.pc+=3;
 	return 0;
-
+    }
 	case 0x20: case 0x28: case 0x30: case 0x38: // jr cc, e8
 		if (!cond) {
-			cpu->regs.pc += 2;
+			cpu->regs.pc++;
+			(int8_t) imm8_f(cpu);
 			return 0;
 		} // fallthrough
 	case 0x18: // jr e8
-		cpu->regs.pc += 2;
-		cpu->regs.pc += (int8_t) imm8;
+		cpu->regs.pc++;
+		cpu->regs.pc += (int8_t) imm8_f(cpu);
 		return 0;
 
 	case 0x09: case 0x19: case 0x29: case 0x39: { // add hl, r16
@@ -301,12 +317,12 @@ bool run_single_command(struct SM83* cpu) {
 		return 0;
 
     case 0xe0:
-	cpu->mem[0xff00|imm8] = cpu->regs.a;
-	cpu->regs.pc+=2;
+	cpu->regs.pc++;
+	cpu->mem[0xff00|imm8_f(cpu)] = cpu->regs.a;
 	return 0;
     case 0xf0:
-	cpu->regs.a = cpu->mem[0xff00|imm8];
-	cpu->regs.pc+=2;
+	cpu->regs.pc++;
+	cpu->regs.a = cpu->mem[0xff00|imm8_f(cpu)];
 	return 0;
     case 0xf1:
 	cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
@@ -318,9 +334,11 @@ bool run_single_command(struct SM83* cpu) {
 			cpu->regs.pc += 3;
 			return 0;
 		} // fallthrough
-	case 0xc3:
-		cpu->regs.pc = imm16;
+	case 0xc3: {
+		cpu->regs.pc++;
+		cpu->regs.pc = imm16_f(cpu);
 		return 0;
+	}
 
     case 0xe2:
 	cpu->mem[0xff00|cpu->regs.c] = cpu->regs.a;
@@ -364,6 +382,8 @@ bool run_single_command(struct SM83* cpu) {
 #define OP_A_D8(OPCODE, OP, NF, HF)				\
     case OPCODE:						\
 	do {							\
+	    cpu->regs.pc++;					\
+	    uint8_t imm8 = imm8_f(cpu);					\
 	    unsigned res = cpu->regs.a OP imm8;			\
 	    int h = ((uint8_t) (cpu->regs.a%16 OP imm8%16)) > 15;\
 	    cpu->regs.a = res;					\
@@ -377,7 +397,6 @@ bool run_single_command(struct SM83* cpu) {
 	    cpu->regs.f|= h ? 0x20:0;				\
 	    cpu->regs.f|= NF? 0x40:0;				\
 	    cpu->regs.f|= cpu->regs.a==0? 0x80:0;			\
-	    cpu->regs.pc += 2;					\
 	    return 0;						\
 	} while(0)
 
@@ -389,12 +408,13 @@ bool run_single_command(struct SM83* cpu) {
     OP_A_D8(0xee,^,0,0);
     OP_A_D8(0xf6,|,0,0);
     case 0xfe: {
+	cpu->regs.pc++;
+	uint8_t imm8 = imm8_f(cpu);
 	unsigned res = cpu->regs.a - imm8;
 	cpu->regs.f = res>255 ? 0x10:0;
 	cpu->regs.f|= cpu->regs.a%16 < imm8%16 ? 0x20:0;
 	cpu->regs.f|= 0x40;
 	cpu->regs.f|= res%256 == 0 ? 0x80:0;
-	cpu->regs.pc+=2;
 	return 0;
     }
 
@@ -415,20 +435,21 @@ bool run_single_command(struct SM83* cpu) {
 	return 0;
     }
     case 0xf8: { // LD HL, SP + r8
+	cpu->regs.pc++;
+	uint8_t imm8 = imm8_f(cpu);
 	unsigned bottom_8_bits = (cpu->regs.sp & 0xff) + imm8;
 	cpu->regs.f = bottom_8_bits > 255 ? 0x10:0;
 	cpu->regs.f|= (bottom_8_bits&0xf) < (cpu->regs.sp&0xf) ? 0x20:0;
-
 	cpu->regs.hl = cpu->regs.sp + (int8_t) imm8;
-	cpu->regs.pc += 2;
 	return 0;
     }
     case 0xe9:
+	cpu->regs.pc++;
 	cpu->regs.pc = cpu->regs.hl;
 	return 0;
     case 0xf9:
-	cpu->regs.sp = cpu->regs.hl;
 	cpu->regs.pc++;
+	cpu->regs.sp = cpu->regs.hl;
 	return 0;
 
     case 0xea: // ld (a16), a
@@ -441,16 +462,17 @@ bool run_single_command(struct SM83* cpu) {
 	return 0;
 
     case 0xcb: // prefix
+	cpu->regs.pc++;
 	return run_single_prefix_command(cpu);
     case 0xfb: //EI; no interrupts -> noop
 	cpu->regs.pc++;
 	return 0;
     }
 	if ((instr[0] & 0300) == 0100) { // reg to reg loads
+		cpu->regs.pc++;
 		auto src = reg_offset_bcdehlhla(instr[0] & 7);
 		auto dest = reg_offset_bcdehlhla((instr[0] >> 3) & 7);
 		*dest = *src;
-		cpu->regs.pc++;
 		return 0;
 	}
 
@@ -469,12 +491,11 @@ bool run_single_command(struct SM83* cpu) {
     XX(OFFSET+7, cpu->regs.a,F,VAL)
 
 static inline bool run_single_prefix_command(struct SM83* cpu) {
-    uint8_t* instr = &cpu->mem[cpu->regs.pc];
-    assert(instr[0] == 0xcb || (instr[1]|0x18) == 0x1f);
+    uint8_t opc = fetch(cpu);
     uint8_t* hl_ = &cpu->mem[cpu->regs.hl];
 
-	int op = instr[1] & 7;
-	int n = (instr[1] >> 3) & 7;
+	int op = opc & 7;
+	int n = (opc >> 3) & 7;
 
 	uint8_t* reg;
 	switch(op) {
@@ -489,7 +510,7 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 	default: __builtin_unreachable();
 	}
 
-	int block = instr[1] >> 6;
+	int block = opc >> 6;
 	if (block) {
 		int bit = 1 << n;
 		if (block == 3) {        // SET instructions
@@ -539,7 +560,6 @@ static inline bool run_single_prefix_command(struct SM83* cpu) {
 			cpu->regs.f = bit0_cf;
 		cpu->regs.f |= *reg == 0? 0x80: 0x00;
 	}
-    cpu->regs.pc += 2;
     return 0;
 }
 
