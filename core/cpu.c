@@ -371,50 +371,40 @@ bool run_single_command(struct SM83* cpu) {
 		return 0;
 	case 0200:
 		int16_t result = cpu->regs.a;
+		cpu->regs.f = 0;
 		switch ((instr[0] >> 3) & 7) {
 		case 0: // ADD
 			result += *src;
-			cpu->regs.f = (result > 0xff) << 4;
 			cpu->regs.f |= ((cpu->regs.a % 16 + *src % 16)>=16)? 0x20: 0;
 			cpu->regs.a = result;
-			cpu->regs.f |= result % 256 == 0? 0x80: 0;
 			break;
 		case 1: // ADC
 			result += *src + cf;
-			cpu->regs.f = (cpu->regs.a + *src + cf > 0xff)? 0x10: 0;
 			cpu->regs.f |= ((cpu->regs.a%16 + *src % 16 + cf)>=16)? 0x20: 0;
 			cpu->regs.a = result;
-			cpu->regs.f |= (cpu->regs.a == 0) << 7;
-			return 0;
+			break;
 		case 2: // SUB
 			result -= *src;
-			cpu->regs.f = (result < 0) << 4;
 			cpu->regs.f |= (cpu->regs.a % 16 < *src % 16) << 5;
 			cpu->regs.f |= 1<<6;
 			cpu->regs.a = result;
-			cpu->regs.f |= (cpu->regs.a == 0) << 7;
-			return 0;
+			break;
 		case 3: // SBC
 			result -= *src + cf;
-			cpu->regs.f = (cpu->regs.a < *src + cf) << 4;
 			cpu->regs.f |= (cpu->regs.a%16 < *src % 16 + cf) << 5;
 			cpu->regs.f |= 1<<6;
 			cpu->regs.a = result;
-			cpu->regs.f |= (cpu->regs.a == 0) << 7;
-			return 0;
+			break;
 		case 4: // AND
 			cpu->regs.a &= *src;
-			cpu->regs.f = 0x20;
-			cpu->regs.f |= (cpu->regs.a == 0) << 7;
-			return 0;
+			cpu->regs.f |= 0x20;
+			break;
 		case 5: // XOR
 			cpu->regs.a ^= *src;
-			cpu->regs.f = (cpu->regs.a == 0) << 7;
-			return 0;
+			break;
 		case 6: // OR
 			cpu->regs.a |= *src;
-			cpu->regs.f = (cpu->regs.a == 0) << 7;
-			return 0;
+			break;
 		case 7: // CP
 			cpu->regs.f = (cpu->regs.a < *src) << 4;
 			cpu->regs.f |= (cpu->regs.a%16 < *src % 16) << 5;
@@ -423,6 +413,8 @@ bool run_single_command(struct SM83* cpu) {
 			return 0;
 		default: __builtin_unreachable();
 		}
+		cpu->regs.f |= !!(result & 0x100) << 4;
+		cpu->regs.f |= (cpu->regs.a == 0) << 7;		
 		return 0;
 	}
 
