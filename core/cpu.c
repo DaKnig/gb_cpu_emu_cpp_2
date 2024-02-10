@@ -219,68 +219,6 @@ bool run_single_command(struct SM83* cpu) {
     XX(cpu->mem[cpu->regs.hl],6);\
     XX(cpu->regs.a,7)
 
-#define ADD(REG, OFFSET)					\
-    case 0x80+OFFSET:						\
-	cpu->regs.f = (cpu->regs.a+REG > 0xff) << 4;		\
-	cpu->regs.f |= ((cpu->regs.a%16+REG%16)>=16)? 0x20: 0;	\
-	cpu->regs.f |= (cpu->regs.a + REG)%256 == 0? 0x80: 0;	\
-	cpu->regs.a += REG;					\
-	return 0
-
-    XX_FOR_ALL_REGS(ADD);
-#define ADC(REG, OFFSET)						\
-    case 0x88+OFFSET:							\
-	cpu->regs.f = (cpu->regs.a + REG + cf > 0xff)? 0x10: 0;		\
-	cpu->regs.f |= ((cpu->regs.a%16 + REG%16 + cf)>=16)? 0x20: 0;	\
-	cpu->regs.f |= (cpu->regs.a + REG + cf)%256 == 0? 0x80: 0;	\
-	cpu->regs.a += REG + cf;					\
-	return 0
-    XX_FOR_ALL_REGS(ADC);
-#define SUB(REG, OFFSET)				\
-    case 0x90+OFFSET:					\
-    	cpu->regs.f = (cpu->regs.a < REG) << 4;		\
-	cpu->regs.f |= (cpu->regs.a%16 < REG%16) << 5;	\
-	cpu->regs.f |= 1<<6;				\
-	cpu->regs.f |= (cpu->regs.a == REG) << 7;		\
-	cpu->regs.a -= REG;				\
-	return 0
-    XX_FOR_ALL_REGS(SUB);
-#define SBC(REG,OFFSET)							\
-    case 0x98+OFFSET:							\
-	cpu->regs.f = (cpu->regs.a < REG+cf) << 4;			\
-	cpu->regs.f |= (cpu->regs.a%16 < REG%16+cf) << 5;		\
-	cpu->regs.f |= 1<<6;						\
-	cpu->regs.f |= (cpu->regs.a - REG - cf)%256 == 0? 0x80: 0;	\
-	cpu->regs.a -= REG + cf;					\
-	return 0
-    XX_FOR_ALL_REGS(SBC);
-#define AND(REG,OFFSET)				\
-    case 0xa0+OFFSET:				\
-	cpu->regs.a &= REG;			\
-	cpu->regs.f = ((cpu->regs.a==0)<<7) | 0x20;\
-	return 0
-    XX_FOR_ALL_REGS(AND);
-#define XOR(REG,OFFSET)				\
-    case 0xa8+OFFSET:				\
-	cpu->regs.a ^= REG;			\
-	cpu->regs.f = (cpu->regs.a == 0) << 7;	\
-	return 0
-    XX_FOR_ALL_REGS(XOR);
-#define OR(REG,OFFSET)				\
-    case 0xb0+OFFSET:				\
-	cpu->regs.a |= REG;			\
-	cpu->regs.f = (cpu->regs.a == 0) << 7;	\
-	return 0
-    XX_FOR_ALL_REGS(OR);
-#define CP(REG,OFFSET)					\
-    case 0xb8+OFFSET:					\
-	cpu->regs.f = (cpu->regs.a < REG) << 4;		\
-	cpu->regs.f |= (cpu->regs.a%16 < REG%16) << 5;	\
-	cpu->regs.f |= 1<<6;				\
-	cpu->regs.f |= (cpu->regs.a == REG) << 7;	\
-	return 0
-    XX_FOR_ALL_REGS(CP);
-
 	case 0xc0: case 0xd0: case 0xc8: case 0xd8: // ret cc
 		if (!cond) {
 			return 0;
@@ -362,7 +300,7 @@ bool run_single_command(struct SM83* cpu) {
 		: 0xff;						\
 	    cpu->regs.f|= h ? 0x20:0;				\
 	    cpu->regs.f|= NF? 0x40:0;				\
-	    cpu->regs.f|= cpu->regs.a==0? 0x80:0;			\
+	    cpu->regs.f|= cpu->regs.a == 0? 0x80:0;			\
 	    return 0;						\
 	} while(0)
 
@@ -425,10 +363,66 @@ bool run_single_command(struct SM83* cpu) {
     case 0xfb: //EI; no interrupts -> noop
 	return 0;
     }
-	if ((instr[0] & 0300) == 0100) { // reg to reg loads
-		auto src = reg_offset_bcdehlhla(instr[0] & 7);
+	uint8_t *src = reg_offset_bcdehlhla(instr[0] & 7);
+	switch(instr[0] & 0300) { // reg to reg loads
+	case 0100:
 		auto dest = reg_offset_bcdehlhla((instr[0] >> 3) & 7);
 		*dest = *src;
+		return 0;
+	case 0200:
+		int16_t result = cpu->regs.a;
+		switch ((instr[0] >> 3) & 7) {
+		case 0: // ADD
+			result += *src;
+			cpu->regs.f = (result > 0xff) << 4;
+			cpu->regs.f |= ((cpu->regs.a % 16 + *src % 16)>=16)? 0x20: 0;
+			cpu->regs.a = result;
+			cpu->regs.f |= result % 256 == 0? 0x80: 0;
+			break;
+		case 1: // ADC
+			result += *src + cf;
+			cpu->regs.f = (cpu->regs.a + *src + cf > 0xff)? 0x10: 0;
+			cpu->regs.f |= ((cpu->regs.a%16 + *src % 16 + cf)>=16)? 0x20: 0;
+			cpu->regs.a = result;
+			cpu->regs.f |= (cpu->regs.a == 0) << 7;
+			return 0;
+		case 2: // SUB
+			result -= *src;
+			cpu->regs.f = (result < 0) << 4;
+			cpu->regs.f |= (cpu->regs.a % 16 < *src % 16) << 5;
+			cpu->regs.f |= 1<<6;
+			cpu->regs.a = result;
+			cpu->regs.f |= (cpu->regs.a == 0) << 7;
+			return 0;
+		case 3: // SBC
+			result -= *src + cf;
+			cpu->regs.f = (cpu->regs.a < *src + cf) << 4;
+			cpu->regs.f |= (cpu->regs.a%16 < *src % 16 + cf) << 5;
+			cpu->regs.f |= 1<<6;
+			cpu->regs.a = result;
+			cpu->regs.f |= (cpu->regs.a == 0) << 7;
+			return 0;
+		case 4: // AND
+			cpu->regs.a &= *src;
+			cpu->regs.f = 0x20;
+			cpu->regs.f |= (cpu->regs.a == 0) << 7;
+			return 0;
+		case 5: // XOR
+			cpu->regs.a ^= *src;
+			cpu->regs.f = (cpu->regs.a == 0) << 7;
+			return 0;
+		case 6: // OR
+			cpu->regs.a |= *src;
+			cpu->regs.f = (cpu->regs.a == 0) << 7;
+			return 0;
+		case 7: // CP
+			cpu->regs.f = (cpu->regs.a < *src) << 4;
+			cpu->regs.f |= (cpu->regs.a%16 < *src % 16) << 5;
+			cpu->regs.f |= 1<<6;
+			cpu->regs.f |= (cpu->regs.a == *src) << 7;
+			return 0;
+		default: __builtin_unreachable();
+		}
 		return 0;
 	}
 
