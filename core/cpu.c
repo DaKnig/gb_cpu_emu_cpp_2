@@ -268,10 +268,14 @@ bool run_single_command(struct SM83* cpu) {
     case 0xf0:
 	cpu->regs.a = cpu->mem[0xff00|imm8_f(cpu)];
 	return 0;
+	case 0xf5: // push af
+		cpu->mem[--cpu->regs.sp] = cpu->regs.af >> 8;
+		cpu->mem[--cpu->regs.sp] = cpu->regs.af;
+		return 0;
     case 0xf1: // pop af
-	cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
-	cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
-	return 0;
+		cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
+		cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
+		return 0;
 	case 0xc2: case 0xd2: case 0xca: case 0xda: // jp cc, a16
 		if (!cond) {
 			(void) imm16_f(cpu);
@@ -305,7 +309,7 @@ bool run_single_command(struct SM83* cpu) {
 		return 0;
 	}
 
-	case 0xc5: case 0xd5: case 0xe5: case 0xf5: { // push r16
+	case 0xc5: case 0xd5: case 0xe5: { // push r16
 		uint16_t regpair = *regpair_offset_bcdehlaf((instr[0] >> 4) - 0xc);
 		cpu->mem[--cpu->regs.sp] = regpair >> 8;
 		cpu->mem[--cpu->regs.sp] = regpair;
@@ -363,16 +367,16 @@ bool run_single_command(struct SM83* cpu) {
     }
 	uint8_t *src = reg_offset_bcdehlhla(instr[0] & 7);
 
-	switch(instr[0] & 0300) { // reg to reg loads
-	case 0100:
+	switch(instr[0] & 0300) {
+	case 0100: // ld r8, r8
 		auto dest = reg_offset_bcdehlhla((instr[0] >> 3) & 7);
 		*dest = *src;
 		return 0;
-	case 0200:
+	case 0200: // op a, r8
 		alu(cpu, *src, (instr[0] >> 3) & 7, cf);
 		return 0;
 	}
-	if (0xfe == (instr[0] | 070)) { // OP A, n8
+	if (0xfe == (instr[0] | 070)) { // op a, n8
 		alu(cpu, imm8_f(cpu), (instr[0] >> 3) & 7, cf);
 		return 0;
 	}
