@@ -44,19 +44,17 @@ static inline void alu(struct SM83* cpu, uint8_t src, int instr, bool cf) {
 		break;
 	case 7: // CP
 		result -= src;
-		cpu->regs.f = (result < 0) << 4;
-		cpu->regs.f |= (cpu->regs.a%16 < src % 16) << 5;
 		cpu->regs.f |= 1<<6;
-		cpu->regs.f |= (cpu->regs.a == src) << 7;
-		return;
+		break;
 	default: __builtin_unreachable();
 	}
 
-	if (instr != 6)
+	if (instr != 6) // hf
 		cpu->regs.f |= ((result ^ cpu->regs.a ^ src) & 0x10) << 1;
+	cpu->regs.f |= ((uint8_t)result == 0) << 7;
 	cpu->regs.f |= !!(result & 0x100) << 4;
-	cpu->regs.a = result;
-	cpu->regs.f |= (cpu->regs.a == 0) << 7;		
+	if (instr != 7)
+		cpu->regs.a = result;
 	return;
 }
 
