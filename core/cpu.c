@@ -20,45 +20,42 @@ static inline void alu(struct SM83* cpu, uint8_t src, int instr, bool cf) {
 	switch (instr) {
 	case 0: // ADD
 		result += src;
-		cpu->regs.f |= ((cpu->regs.a % 16 + src % 16)>=16)? 0x20: 0;
-		cpu->regs.a = result;
 		break;
 	case 1: // ADC
 		result += src + cf;
-		cpu->regs.f |= ((cpu->regs.a%16 + src % 16 + cf)>=16)? 0x20: 0;
-		cpu->regs.a = result;
 		break;
 	case 2: // SUB
 		result -= src;
-		cpu->regs.f |= (cpu->regs.a % 16 < src % 16) << 5;
 		cpu->regs.f |= 1<<6;
-		cpu->regs.a = result;
 		break;
 	case 3: // SBC
 		result -= src + cf;
-		cpu->regs.f |= (cpu->regs.a%16 < src % 16 + cf) << 5;
 		cpu->regs.f |= 1<<6;
-		cpu->regs.a = result;
 		break;
 	case 4: // AND
-		cpu->regs.a &= src;
+		result &= src;
 		cpu->regs.f |= 0x20;
 		break;
 	case 5: // XOR
-		cpu->regs.a ^= src;
+		result ^= src;
 		break;
 	case 6: // OR
-		cpu->regs.a |= src;
+		result |= src;
 		break;
 	case 7: // CP
-		cpu->regs.f = (cpu->regs.a < src) << 4;
+		result -= src;
+		cpu->regs.f = (result < 0) << 4;
 		cpu->regs.f |= (cpu->regs.a%16 < src % 16) << 5;
 		cpu->regs.f |= 1<<6;
 		cpu->regs.f |= (cpu->regs.a == src) << 7;
 		return;
 	default: __builtin_unreachable();
 	}
+
+	if (instr != 6)
+		cpu->regs.f |= ((result ^ cpu->regs.a ^ src) & 0x10) << 1;
 	cpu->regs.f |= !!(result & 0x100) << 4;
+	cpu->regs.a = result;
 	cpu->regs.f |= (cpu->regs.a == 0) << 7;		
 	return;
 }
@@ -273,7 +270,7 @@ bool run_single_command(struct SM83* cpu) {
     case 0xf0:
 	cpu->regs.a = cpu->mem[0xff00|imm8_f(cpu)];
 	return 0;
-    case 0xf1:
+    case 0xf1: // pop af
 	cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
 	cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
 	return 0;
