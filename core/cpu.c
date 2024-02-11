@@ -320,15 +320,6 @@ bool run_single_command(struct SM83* cpu) {
 		*regpair|= cpu->mem[cpu->regs.sp++]<<8;
 		return 0;
 	}
-    case 0xfe: {
-	uint8_t imm8 = imm8_f(cpu);
-	unsigned res = cpu->regs.a - imm8;
-	cpu->regs.f = res>255 ? 0x10:0;
-	cpu->regs.f|= cpu->regs.a%16 < imm8%16 ? 0x20:0;
-	cpu->regs.f|= 0x40;
-	cpu->regs.f|= res%256 == 0 ? 0x80:0;
-	return 0;
-    }
 
 	case 0xc7: case 0xcf: case 0xd7: case 0xdf:
 	case 0xe7: case 0xef: case 0xf7: case 0xff: // rst
