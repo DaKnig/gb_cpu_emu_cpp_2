@@ -34,7 +34,7 @@ static inline void alu(struct SM83* cpu, uint8_t src, int instr, bool cf) {
 		break;
 	case 4: // AND
 		result &= src;
-		cpu->regs.f |= 0x20;
+		cpu->regs.f |= 1<<5;
 		break;
 	case 5: // XOR
 		result ^= src;
@@ -317,21 +317,15 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->mem[--cpu->regs.sp] = cpu->regs.pc;
 		cpu->regs.pc = instr[0] - 0xc7;
 		return 0;
-    case 0xe8: { // ADD SP, r8
+    case 0xe8: case 0xf8: { // ADD SP, r8    &&    LD HL, SP + r8
 	uint8_t imm8 = imm8_f(cpu);
 	unsigned bottom_8_bits = (cpu->regs.sp & 0xff) + imm8;
 	cpu->regs.f = bottom_8_bits > 255 ? 0x10:0;
 	cpu->regs.f|= (bottom_8_bits&0xf) < (cpu->regs.sp&0xf) ? 0x20:0;
 
-	cpu->regs.sp += (int8_t) imm8;
-	return 0;
-    }
-    case 0xf8: { // LD HL, SP + r8
-	uint8_t imm8 = imm8_f(cpu);
-	unsigned bottom_8_bits = (cpu->regs.sp & 0xff) + imm8;
-	cpu->regs.f = bottom_8_bits > 255 ? 0x10:0;
-	cpu->regs.f|= (bottom_8_bits&0xf) < (cpu->regs.sp&0xf) ? 0x20:0;
-	cpu->regs.hl = cpu->regs.sp + (int8_t) imm8;
+	// auto dest = instr[0] == 0xe8 ? &sp : &hl;
+	auto dest = (instr[0] == 0xe8) + &cpu->regs.hl;
+	*dest = cpu->regs.sp + (int8_t) imm8;
 	return 0;
     }
     case 0xe9:
