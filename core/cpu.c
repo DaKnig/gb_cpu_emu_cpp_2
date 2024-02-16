@@ -79,13 +79,7 @@ bool run_single_command(struct SM83* cpu) {
 		return imm16;
 	}
 	uint16_t* regpair_offset_bcdehlsp(uint8_t idx) {
-		switch(idx) {
-		case 0: return &cpu->regs.bc;
-		case 1: return &cpu->regs.de;
-		case 2: return &cpu->regs.hl;
-		case 3: return &cpu->regs.sp;
-		default: __builtin_unreachable();
-		}
+		return cpu->regs.regpairs + idx + 1;
 	}
  	uint8_t* regpair_offset_bcdehlhl(uint8_t idx) {
 		switch(idx) {
@@ -107,12 +101,12 @@ bool run_single_command(struct SM83* cpu) {
 	}
 	uint8_t* reg_offset_bcdehlhla(uint8_t idx) {
 		switch(idx) {
-		case 0: return &cpu->regs.b;
-		case 1: return &cpu->regs.c;
-		case 2: return &cpu->regs.d;
-		case 3: return &cpu->regs.e;
-		case 4: return &cpu->regs.h;
-		case 5: return &cpu->regs.l;
+		case 0: 
+		case 1: 
+		case 2: 
+		case 3: 
+		case 4: 
+		case 5: return cpu->regs.registers + 2 + (1^idx);
 		case 6: return &cpu->mem[cpu->regs.hl];
 		case 7: return &cpu->regs.a;
 		default: __builtin_unreachable();

@@ -42,7 +42,8 @@ union regs{ // the f reg is just for show; its not actually functional.
                 l, h;
 #endif
     };
-    uint16_t registers[6]; // all the regs in their order
+    uint16_t regpairs[6]; // all the reg pairs in their order
+    uint8_t registers[12]; // all the registers in their order
     // not including flags
 };
 
