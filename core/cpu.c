@@ -82,7 +82,7 @@ bool run_single_command(struct SM83* cpu) {
 	uint16_t* regpair_offset_bcdehlsp(uint8_t idx) {
 		return cpu->regs.regpairs + idx + 1;
 	}
- 	uint8_t* regpair_offset_bcdehlhl(uint8_t idx) {
+ 	uint8_t* regpair_offset_bcdehlhl(uint32_t idx) {
 		switch(idx) {
 		case 0: return &cpu->mem[cpu->regs.bc];
 		case 1: return &cpu->mem[cpu->regs.de];
@@ -94,7 +94,7 @@ bool run_single_command(struct SM83* cpu) {
  	uint16_t* regpair_offset_bcdehlaf(uint8_t idx) {
 		return cpu->regs.regpairs + (idx + 1) % 4;
 	}
-	uint8_t* reg_offset_bcdehlhla(uint8_t idx) {
+	uint8_t* reg_offset_bcdehlhla(uint32_t idx) {
 		switch(idx) {
 		case 0:
 		case 1:
@@ -319,12 +319,9 @@ bool run_single_command(struct SM83* cpu) {
 		cpu->regs.pc = instr[0] - 0xc7;
 		return 0;
     case 0xe8: case 0xf8: { // ADD SP, r8    &&    LD HL, SP + r8
-	uint8_t imm8 = imm8_f(cpu);
-	unsigned bottom_8_bits = (cpu->regs.sp & 0xff) + imm8;
-	cpu->regs.f = bottom_8_bits > 255 ? 0x10:0;
-	cpu->regs.f|= (bottom_8_bits&0xf) < (cpu->regs.sp&0xf) ? 0x20:0;
-
-	// auto dest = instr[0] == 0xe8 ? &sp : &hl;
+	alu(cpu, imm8_f(cpu), 0, 0, cpu->regs.sp & 0xff);
+	cpu->regs.f &= ~0x80;
+	// auto dest = instr[0] == 0xf8 ? &hl : &sp;
 	auto dest = (instr[0] == 0xe8) + &cpu->regs.hl;
 	*dest = cpu->regs.sp + (int8_t) imm8;
 	return 0;
