@@ -132,14 +132,11 @@ bool run_single_command(struct SM83* cpu) {
 	case 0x05: case 0x15: case 0x25: case 0x35:
 	case 0x0c: case 0x1c: case 0x2c: case 0x3c:
 	case 0x0d: case 0x1d: case 0x2d: case 0x3d: { // inc r8 ; dec r8
-		uint8_t op = instr[0] & 1 ? -1 : 1;
 	    uint8_t *reg = reg_offset_bcdehlhla(instr[0] >> 3);
-		uint32_t new_res = *reg += op;
-		cpu->regs.f = cpu->regs.f & 0x10; // keep cf
-		cpu->regs.f|= *reg ? 0x00 : 0x80;
-		uint8_t hf = (new_res & 0xf) == (instr[0] & 1 ? 0xf : 0x0);
-		cpu->regs.f|= 0x20 * hf;
-		cpu->regs.f|= instr[0] & 1 ? 0x40 : 0x00;
+	    uint8_t f = cpu->regs.f & 0x10;
+	    *reg = alu(cpu, 0, (instr[0] * 2 + 1) & 3, 1, *reg);
+	    cpu->regs.f &= ~0x10;
+	    cpu->regs.f |= f;
 	    return 0;
 	}
 
