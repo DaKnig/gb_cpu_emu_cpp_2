@@ -14,8 +14,8 @@ static inline uint8_t fetch(struct SM83* cpu) {
 	return cpu->mem[cpu->regs.pc++];
 }
 
-static inline void alu(struct SM83* cpu, uint8_t src, int instr, bool cf) {
-	int16_t result = cpu->regs.a;
+static inline uint16_t alu(struct SM83* cpu, uint8_t src, int instr, bool cf, uint32_t a) {
+	int16_t result = a;
 	cpu->regs.f = 0;
 	switch (instr) {
 	case 0: // ADD
@@ -50,12 +50,13 @@ static inline void alu(struct SM83* cpu, uint8_t src, int instr, bool cf) {
 	}
 
 	if (instr != 6) // hf
-		cpu->regs.f |= ((result ^ cpu->regs.a ^ src) & 0x10) << 1;
+		cpu->regs.f |= ((result ^ a ^ src) & 0x10) << 1;
 	cpu->regs.f |= ((uint8_t)result == 0) << 7;
 	cpu->regs.f |= !!(result & 0x100) << 4;
 	if (instr != 7)
-		cpu->regs.a = result;
-	return;
+		return result;
+	else 
+		return a;
 }
 
 bool run_single_command(struct SM83* cpu) {
@@ -354,11 +355,11 @@ bool run_single_command(struct SM83* cpu) {
 		*dest = *src;
 		return 0;
 	case 0200: // op a, r8
-		alu(cpu, *src, (instr[0] >> 3) & 7, cf);
+		cpu->regs.a = alu(cpu, *src, (instr[0] >> 3) & 7, cf, cpu->regs.a);
 		return 0;
 	}
 	if (0xfe == (instr[0] | 070)) { // op a, n8
-		alu(cpu, imm8_f(cpu), (instr[0] >> 3) & 7, cf);
+		cpu->regs.a = alu(cpu, imm8_f(cpu), (instr[0] >> 3) & 7, cf, cpu->regs.a);
 		return 0;
 	}
 
