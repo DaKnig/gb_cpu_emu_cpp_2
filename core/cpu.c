@@ -328,11 +328,10 @@ bool run_single_command(struct SM83* cpu) {
 	*dest = cpu->regs.sp + (int8_t) imm8;
 	return 0;
     }
-    case 0xe9:
-	cpu->regs.pc = cpu->regs.hl;
-	return 0;
-    case 0xf9:
-	cpu->regs.sp = cpu->regs.hl;
+    case 0xe9: case 0xf9: // jp hl && ld sp, hl
+	/* auto dest = instr[0] == 0xf9? &cpu->regs.sp : &cpu->regs.pc; */
+	auto dest = (instr[0] == 0xe9) + &cpu->regs.sp;
+	*dest = cpu->regs.hl;
 	return 0;
 
     case 0xea: // ld (a16), a
