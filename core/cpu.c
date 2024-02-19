@@ -117,30 +117,6 @@ bool run_single_command(struct SM83* cpu) {
 	case 0x10: // stop
 		cpu->regs.pc++;
 		return 1;
-	case 0x01: case 0x11: case 0x21: case 0x31: // ld r16, n16
-		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
-		*regpair = imm16_f(cpu);
-		return 0;
-	case 0x02: case 0x12: case 0x22: case 0x32: // ld [r16], a
-		*regpair_offset_bcdehlhl(cpu, instr[0] >> 4) = cpu->regs.a;
-		return 0;
-	case 0x03: case 0x13: case 0x23: case 0x33:
-	case 0x0b: case 0x1b: case 0x2b: case 0x3b: // inc r16 ; dec r16
-		*regpair_offset_bcdehlsp(instr[0] >> 4) += (instr[0] & 8 ? -1 : 1);
-		return 0;
-
-	case 0x04: case 0x14: case 0x24: case 0x34:
-	case 0x05: case 0x15: case 0x25: case 0x35:
-	case 0x0c: case 0x1c: case 0x2c: case 0x3c:
-	case 0x0d: case 0x1d: case 0x2d: case 0x3d: { // inc r8 ; dec r8
-	    uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
-	    uint8_t f = cpu->regs.f & 0x10;
-	    *reg = alu(cpu, 0, (instr[0] * 2 + 1) & 3, 1, *reg);
-	    cpu->regs.f &= ~0x10;
-	    cpu->regs.f |= f;
-	    return 0;
-	}
-
 	case 0x06: case 0x16: case 0x26: case 0x36:
 	case 0x0e: case 0x1e: case 0x2e: case 0x3e: { // ld r8, n8
 		uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
@@ -352,6 +328,27 @@ bool run_single_command(struct SM83* cpu) {
 	case 0200: // op a, r8
 		cpu->regs.a = alu(cpu, *src, (instr[0] >> 3) & 7, cf, cpu->regs.a);
 		return 0;
+	case 0000: // regular ops of first quadrant
+		switch (instr[0] & 0xf) { // the column
+		case 0x1: // ld r16, n16
+			uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
+			*regpair = imm16_f(cpu);
+			return 0;
+		case 0x2: // ld [r16], a
+			*regpair_offset_bcdehlhl(cpu, instr[0] >> 4) = cpu->regs.a;
+			return 0;
+		case 0x3: case 0xb: // inc r16 ; dec r16
+			*regpair_offset_bcdehlsp(instr[0] >> 4) += (instr[0] & 8 ? -1 : 1);
+			return 0;
+		case 0x4: case 0x5: case 0xc: case 0xd:  // inc r8 ; dec r8
+			uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
+			uint8_t f = cpu->regs.f & 0x10;
+			*reg = alu(cpu, 0, (instr[0] * 2 + 1) & 3, 1, *reg);
+			cpu->regs.f &= ~0x10;
+			cpu->regs.f |= f;
+			return 0;
+
+		}
 	}
 	if (0xfe == (instr[0] | 070)) { // op a, n8
 		cpu->regs.a = alu(cpu, imm8_f(cpu), (instr[0] >> 3) & 7, cf, cpu->regs.a);
