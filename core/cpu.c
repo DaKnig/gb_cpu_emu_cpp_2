@@ -349,7 +349,7 @@ bool run_single_command(struct SM83* cpu) {
 	case 0100: // ld r8, r8
 		auto dest = reg_offset_bcdehlhla(cpu, (instr[0] >> 3) & 7);
 		*dest = *src;
-		return 0;
+		return instr[0] == 0166; // ld [hl], [hl] == halt
 	case 0200: // op a, r8
 		cpu->regs.a = alu(cpu, *src, (instr[0] >> 3) & 7, cf, cpu->regs.a);
 		return 0;
