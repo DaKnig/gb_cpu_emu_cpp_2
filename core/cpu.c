@@ -59,6 +59,16 @@ static inline uint16_t alu(struct SM83* cpu, uint8_t src, int instr, bool cf, ui
 		return a;
 }
 
+uint8_t* regpair_offset_bcdehlhl(struct SM83 *cpu, uint32_t idx) {
+	switch(idx) {
+	case 0: return &cpu->mem[cpu->regs.bc];
+	case 1: return &cpu->mem[cpu->regs.de];
+	case 2: return &cpu->mem[cpu->regs.hl++];
+	case 3: return &cpu->mem[cpu->regs.hl--];
+	default: __builtin_unreachable();
+	}
+}
+
 bool run_single_command(struct SM83* cpu) {
     // add flags and all later
     uint8_t instr[4]; memcpy(instr, &cpu->mem[cpu->regs.pc], sizeof(instr));
@@ -81,15 +91,6 @@ bool run_single_command(struct SM83* cpu) {
 	}
 	uint16_t* regpair_offset_bcdehlsp(uint8_t idx) {
 		return cpu->regs.regpairs + idx + 1;
-	}
- 	uint8_t* regpair_offset_bcdehlhl(uint32_t idx) {
-		switch(idx) {
-		case 0: return &cpu->mem[cpu->regs.bc];
-		case 1: return &cpu->mem[cpu->regs.de];
-		case 2: return &cpu->mem[cpu->regs.hl++];
-		case 3: return &cpu->mem[cpu->regs.hl--];
-		default: __builtin_unreachable();
-		}
 	}
  	uint16_t* regpair_offset_bcdehlaf(uint8_t idx) {
 		return cpu->regs.regpairs + (idx + 1) % 4;
@@ -121,7 +122,7 @@ bool run_single_command(struct SM83* cpu) {
 		*regpair = imm16_f(cpu);
 		return 0;
 	case 0x02: case 0x12: case 0x22: case 0x32: // ld [r16], a
-		*regpair_offset_bcdehlhl(instr[0] >> 4) = cpu->regs.a;
+		*regpair_offset_bcdehlhl(cpu, instr[0] >> 4) = cpu->regs.a;
 		return 0;
 	case 0x03: case 0x13: case 0x23: case 0x33:
 	case 0x0b: case 0x1b: case 0x2b: case 0x3b: // inc r16 ; dec r16
@@ -226,7 +227,7 @@ bool run_single_command(struct SM83* cpu) {
 	}
 
 	case 0x0a: case 0x1a: case 0x2a: case 0x3a: // ld a, [r16]
-		cpu->regs.a = *regpair_offset_bcdehlhl(instr[0] >> 4);
+		cpu->regs.a = *regpair_offset_bcdehlhl(cpu, instr[0] >> 4);
 		return 0;
 
     case 0x2f: // CPL
