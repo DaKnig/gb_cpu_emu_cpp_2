@@ -111,13 +111,12 @@ bool run_single_command(struct SM83* cpu) {
 	}
 
 	cpu->regs.pc++;
-	if (instr[0] == 0) {
+    switch (instr[0]) {
+	case 0x00:
 		return 0;
-	} else if (instr[0] == 0x10) {
+	case 0x10: // stop
 		cpu->regs.pc++;
 		return 1;
-	}
-    switch (instr[0]) {
 	case 0x01: case 0x11: case 0x21: case 0x31: // ld r16, n16
 		uint16_t* regpair = regpair_offset_bcdehlsp(instr[0] >> 4);
 		*regpair = imm16_f(cpu);
