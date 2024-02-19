@@ -117,13 +117,6 @@ bool run_single_command(struct SM83* cpu) {
 	case 0x10: // stop
 		cpu->regs.pc++;
 		return 1;
-	case 0x06: case 0x16: case 0x26: case 0x36:
-	case 0x0e: case 0x1e: case 0x2e: case 0x3e: { // ld r8, n8
-		uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
-		*reg = imm8_f(cpu);
-		return 0;
-	}
-
     case 0x07: case 0x17: case 0x0f: case 0x1f: // rlca rla rrca rra
 		cpu->regs.pc--;
 		run_single_prefix_command(cpu);
@@ -347,7 +340,11 @@ bool run_single_command(struct SM83* cpu) {
 			cpu->regs.f &= ~0x10;
 			cpu->regs.f |= f;
 			return 0;
-
+		case 0x6: case 0xe: { // ld r8, n8
+			uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
+			*reg = imm8_f(cpu);
+			return 0;
+		}
 		}
 	}
 	if (0xfe == (instr[0] | 070)) { // op a, n8
