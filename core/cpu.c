@@ -312,10 +312,10 @@ bool run_single_command(struct SM83* cpu) {
 	return 0;
     }
 	uint8_t *src = reg_offset_bcdehlhla(cpu, instr[0] & 7);
+	uint8_t *dest = reg_offset_bcdehlhla(cpu, (instr[0] >> 3) & 7);
 
 	switch(instr[0] & 0300) {
 	case 0100: // ld r8, r8
-		auto dest = reg_offset_bcdehlhla(cpu, (instr[0] >> 3) & 7);
 		*dest = *src;
 		return instr[0] == 0166; // ld [hl], [hl] == halt
 	case 0200: // op a, r8
@@ -334,14 +334,14 @@ bool run_single_command(struct SM83* cpu) {
 			*regpair_offset_bcdehlsp(instr[0] >> 4) += (instr[0] & 8 ? -1 : 1);
 			return 0;
 		case 0x4: case 0x5: case 0xc: case 0xd:  // inc r8 ; dec r8
-			uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
+			uint8_t *reg = dest;
 			uint8_t f = cpu->regs.f & 0x10;
 			*reg = alu(cpu, 0, (instr[0] * 2 + 1) & 3, 1, *reg);
 			cpu->regs.f &= ~0x10;
 			cpu->regs.f |= f;
 			return 0;
 		case 0x6: case 0xe: { // ld r8, n8
-			uint8_t *reg = reg_offset_bcdehlhla(cpu, instr[0] >> 3);
+			uint8_t *reg = dest;
 			*reg = imm8_f(cpu);
 			return 0;
 		}
